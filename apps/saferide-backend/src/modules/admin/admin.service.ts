@@ -8,6 +8,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service'
 import { AuditService } from '../audit/audit.service'
 import { RidesService } from '../rides/rides.service'
+import { PaymentStatus, RideStatus } from '@prisma/client'
 
 const ACTIVE_RIDE_STATES: RideStatus[] = [
   RideStatus.REQUESTED,
