@@ -5,7 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service'
 export interface AuditEntryInput {
   actorId?: string | null
   actorRole?: string | null
-  action: string
+  action: AuditAction
   entityType?: string | null
   entityId?: string | null
   metadata?: Record<string, unknown>
