@@ -26,14 +26,14 @@ export class AuditService {
           action: input.action,
           entityType: input.entityType ?? null,
           entityId: input.entityId ?? null,
-          metadata: input.metadata ? (input.metadata as any) : undefined,
+          metadata: input.metadata
+            ? (input.metadata as any)
+            : undefined,
           ip: input.ip ?? null,
           userAgent: input.userAgent ?? null,
         },
       })
     } catch (err) {
-      // Audit must never break the main flow
-      // eslint-disable-next-line no-console
       console.error('Audit write failed', err)
     }
   }
