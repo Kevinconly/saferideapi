@@ -1,10 +1,16 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
-import { Prisma } from '@prisma/client'
+import {
+  Prisma,
+  RideStatus,
+  PaymentStatus,
+  AuditAction,
+} from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
 import { AuditService } from '../audit/audit.service'
 import { RidesService } from '../rides/rides.service'
 
 const ACTIVE_RIDE_STATES: RideStatus[] = [
+  RideStatus.REQUESTED,
   RideStatus.PENDING_ACCEPTANCE,
   RideStatus.ACCEPTED,
   RideStatus.DRIVER_EN_ROUTE,
@@ -12,7 +18,6 @@ const ACTIVE_RIDE_STATES: RideStatus[] = [
   RideStatus.PASSENGER_ON_BOARD,
   RideStatus.IN_PROGRESS,
 ]
-
 @Injectable()
 export class AdminService {
   constructor(
