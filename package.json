@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "npm run dev:web",
     "start": "npm run start:web",
-    "build": "npm run build:web",
+    "build": "prisma generate && tsc -p tsconfig.json",
     "lint": "npm run lint:web",
     "dev:backend": "npm run start:dev --workspace=saferide-backend",
     "dev:web": "npm run dev --workspace=saferide-web",
