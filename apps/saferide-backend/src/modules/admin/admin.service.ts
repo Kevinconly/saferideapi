@@ -4,7 +4,14 @@ import { PrismaService } from '../../prisma/prisma.service'
 import { AuditService } from '../audit/audit.service'
 import { RidesService } from '../rides/rides.service'
 
-const ACTIVE_RIDE_STATES = ['REQUESTED', 'MATCHING', 'RESERVED', 'OFFERED', 'EN_ROUTE_TO_PICKUP', 'ARRIVED_AT_PICKUP', 'PICKED_UP', 'EN_ROUTE_TO_DROPOFF']
+const ACTIVE_RIDE_STATES: RideStatus[] = [
+  RideStatus.PENDING_ACCEPTANCE,
+  RideStatus.ACCEPTED,
+  RideStatus.DRIVER_EN_ROUTE,
+  RideStatus.ARRIVED,
+  RideStatus.PASSENGER_ON_BOARD,
+  RideStatus.IN_PROGRESS,
+]
 
 @Injectable()
 export class AdminService {
