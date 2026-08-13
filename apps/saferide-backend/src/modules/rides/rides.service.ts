@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common'
-import { AuditAction, PaymentStatus, Prisma, RideStatus } from '@prisma/client'
+import { AuditAction, PaymentStatus, RideStatus, UserRole } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
 import { AuditService } from '../audit/audit.service'
 import { RealtimeService } from '../websocket/realtime.service'
@@ -21,6 +21,10 @@ const FORWARD_TRANSITIONS: Record<RideStatus, RideStatus[]> = {
   IN_PROGRESS: [RideStatus.COMPLETED],
   COMPLETED: [],
   CANCELLED: [],
+  DRIVER_NO_SHOW: [],
+  PASSENGER_NO_SHOW: [],
+  DISPUTE: [],
+  FAILED: [],
 }
 
 @Injectable()
@@ -66,7 +70,7 @@ export class RidesService {
     })
     await this.audit.record({
       actorId: userId,
-      actorRole: 'PASSENGER',
+      actorRole: UserRole.PASSENGER,
       action: AuditAction.RIDE_STATE_CHANGE,
       entityType: 'ride',
       entityId: ride.id,
@@ -157,7 +161,7 @@ export class RidesService {
 
     await this.audit.record({
       actorId: userId,
-      actorRole: 'PASSENGER',
+      actorRole: UserRole.PASSENGER,
       action: AuditAction.RIDE_STATE_CHANGE,
       entityType: 'ride',
       entityId: rideId,
@@ -247,7 +251,7 @@ export class RidesService {
 
     await this.audit.record({
       actorId: driverId,
-      actorRole: 'DRIVER',
+      actorRole: UserRole.DRIVER,
       action: AuditAction.RIDE_STATE_CHANGE,
       entityType: 'ride',
       entityId: rideId,
@@ -325,7 +329,7 @@ export class RidesService {
 
     await this.audit.record({
       actorId: driverId,
-      actorRole: 'DRIVER',
+      actorRole: UserRole.DRIVER,
       action: AuditAction.RIDE_STATE_CHANGE,
       entityType: 'ride',
       entityId: rideId,
@@ -348,7 +352,6 @@ export class RidesService {
   }
 
   private async notify(userId: string, type: string, payload: Record<string, unknown>) {
-    // Web push + in-app notifications are handled by the outbox worker
     await this.prisma.outbox.create({
       data: {
         aggregateType: 'ride',
