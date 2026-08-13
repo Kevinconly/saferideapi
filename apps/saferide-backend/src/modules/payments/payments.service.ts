@@ -6,8 +6,9 @@ import {
   NotFoundException,
   OnModuleDestroy,
 } from '@nestjs/common'
-import { PrismaService } from '../../prisma/prisma.service'
+import { AuditAction, PaymentStatus, RideStatus } from '@prisma/client'
 import { ConfigService } from '../../config/config.service'
+import { PrismaService } from '../../prisma/prisma.service'
 import { AuditService } from '../audit/audit.service'
 import { OutboxService } from '../outbox/outbox.service'
 
@@ -27,7 +28,7 @@ export class PaymentsService implements OnModuleDestroy {
     const ride = await this.prisma.ride.findUnique({ where: { id: rideId } })
     if (!ride) throw new NotFoundException('Ride not found')
     if (ride.passengerId !== userId) throw new ForbiddenException('You cannot pay for someone else\'s ride')
-    if (ride.state !== 'COMPLETED') {
+    if (ride.state !== RideStatus.COMPLETED) {
       throw new BadRequestException('Payment is only available after the ride is completed')
     }
 
@@ -43,14 +44,14 @@ export class PaymentsService implements OnModuleDestroy {
         provider: 'sandbox',
         providerReference: `pay_${rideId}`,
         idempotencyKey: idempotencyKey ?? null,
-        status: 'PROCESSING',
+        status: PaymentStatus.PROCESSING,
       },
     })
 
     await this.audit.record({
       actorId: userId,
       actorRole: 'PASSENGER',
-      action: 'payment.initiated',
+      action: AuditAction.PAYMENT_PROCESSED,
       entityType: 'payment',
       entityId: payment.id,
       metadata: { rideId, amountCents: ride.fareCents },
@@ -76,19 +77,19 @@ export class PaymentsService implements OnModuleDestroy {
     const payment = await this.prisma.payment.findUnique({ where: { id: paymentId } })
     if (!payment) throw new NotFoundException('Payment not found')
     if (payment.userId !== userId) throw new ForbiddenException('You cannot refund this payment')
-    if (payment.status !== 'SUCCESS') {
+    if (payment.status !== PaymentStatus.SETTLED) {
       throw new BadRequestException(`Only successful payments can be refunded (status: ${payment.status})`)
     }
 
     const updated = await this.prisma.payment.update({
       where: { id: paymentId },
-      data: { status: 'REFUNDED', refundReason: reason ?? null, processedAt: new Date() },
+      data: { status: PaymentStatus.REFUNDED, refundReason: reason ?? null, processedAt: new Date() },
     })
 
     await this.audit.record({
       actorId: userId,
       actorRole: 'PASSENGER',
-      action: 'payment.refunded',
+      action: AuditAction.PAYMENT_REFUNDED,
       entityType: 'payment',
       entityId: paymentId,
       metadata: { reason: reason ?? null },
@@ -130,17 +131,17 @@ export class PaymentsService implements OnModuleDestroy {
   private async confirm(paymentId: string, source: string) {
     const existing = await this.prisma.payment.findUnique({ where: { id: paymentId } })
     if (!existing) throw new NotFoundException('Payment not found')
-    if (existing.status === 'SUCCESS') {
+    if (existing.status === PaymentStatus.SETTLED) {
       // Idempotent: already confirmed
       return this.publicPayment(existing)
     }
-    if (existing.status === 'REFUNDED' || existing.status === 'FAILED') {
+    if (existing.status === PaymentStatus.REFUNDED || existing.status === PaymentStatus.FAILED) {
       throw new BadRequestException(`Payment cannot be confirmed from status ${existing.status}`)
     }
 
     const updated = await this.prisma.payment.update({
       where: { id: paymentId },
-      data: { status: 'SUCCESS', processedAt: new Date() },
+      data: { status: PaymentStatus.SETTLED, processedAt: new Date() },
     })
 
     if (existing.userId) {
@@ -155,7 +156,7 @@ export class PaymentsService implements OnModuleDestroy {
     await this.audit.record({
       actorId: null,
       actorRole: 'SYSTEM',
-      action: 'payment.confirmed',
+      action: AuditAction.PAYMENT_PROCESSED,
       entityType: 'payment',
       entityId: paymentId,
       metadata: { source, provider: 'sandbox' },
@@ -180,7 +181,7 @@ export class PaymentsService implements OnModuleDestroy {
     currency: string
     provider: string
     providerReference: string | null
-    status: string
+    status: PaymentStatus
     rideId: string | null
     processedAt: Date | null
     createdAt: Date
