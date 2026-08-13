@@ -1,0 +1,118 @@
+import { OnModuleDestroy } from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
+import { ConfigService } from '../../config/config.service';
+import { AuditService } from '../audit/audit.service';
+import { OutboxService } from '../outbox/outbox.service';
+export declare class PaymentsService implements OnModuleDestroy {
+    private prisma;
+    private config;
+    private audit;
+    private outbox;
+    private readonly logger;
+    private timers;
+    constructor(prisma: PrismaService, config: ConfigService, audit: AuditService, outbox: OutboxService);
+    initiateForRide(userId: string, rideId: string, idempotencyKey?: string): Promise<{
+        id: string;
+        amountCents: number;
+        amount: number;
+        currency: string;
+        provider: string;
+        providerReference: string | null;
+        status: string;
+        rideId: string | null;
+        processedAt: Date | null;
+        createdAt: Date;
+        refundReason: string | null;
+    }>;
+    simulateSuccess(paymentId: string): Promise<{
+        id: string;
+        amountCents: number;
+        amount: number;
+        currency: string;
+        provider: string;
+        providerReference: string | null;
+        status: string;
+        rideId: string | null;
+        processedAt: Date | null;
+        createdAt: Date;
+        refundReason: string | null;
+    }>;
+    webhookSandbox(paymentId: string, secret: string): Promise<{
+        id: string;
+        amountCents: number;
+        amount: number;
+        currency: string;
+        provider: string;
+        providerReference: string | null;
+        status: string;
+        rideId: string | null;
+        processedAt: Date | null;
+        createdAt: Date;
+        refundReason: string | null;
+    }>;
+    refund(userId: string, paymentId: string, reason?: string): Promise<{
+        id: string;
+        amountCents: number;
+        amount: number;
+        currency: string;
+        provider: string;
+        providerReference: string | null;
+        status: string;
+        rideId: string | null;
+        processedAt: Date | null;
+        createdAt: Date;
+        refundReason: string | null;
+    }>;
+    listMine(userId: string, page: number, pageSize: number): Promise<{
+        items: {
+            status: string;
+            userId: string | null;
+            id: string;
+            createdAt: Date;
+            rideId: string | null;
+            amountCents: number;
+            currency: string;
+            provider: string;
+            providerReference: string | null;
+            idempotencyKey: string | null;
+            metadata: import("@prisma/client/runtime/library").JsonValue | null;
+            refundReason: string | null;
+            processedAt: Date | null;
+        }[];
+        total: number;
+        page: number;
+        pageSize: number;
+        totalPages: number;
+        hasMore: boolean;
+    }>;
+    getById(userId: string, paymentId: string, role?: string): Promise<{
+        id: string;
+        amountCents: number;
+        amount: number;
+        currency: string;
+        provider: string;
+        providerReference: string | null;
+        status: string;
+        rideId: string | null;
+        processedAt: Date | null;
+        createdAt: Date;
+        refundReason: string | null;
+    }>;
+    getByRide(userId: string, rideId: string): Promise<{
+        id: string;
+        amountCents: number;
+        amount: number;
+        currency: string;
+        provider: string;
+        providerReference: string | null;
+        status: string;
+        rideId: string | null;
+        processedAt: Date | null;
+        createdAt: Date;
+        refundReason: string | null;
+    }>;
+    private confirm;
+    private scheduleAutoConfirm;
+    private publicPayment;
+    onModuleDestroy(): void;
+}
