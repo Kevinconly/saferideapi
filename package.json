@@ -35,6 +35,7 @@
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.0.0",
     "socket.io": "^4.8.1",
+    "tsc": "^2.0.4",
     "web-push": "^3.6.7",
     "zod": "^3.0.0"
   },
