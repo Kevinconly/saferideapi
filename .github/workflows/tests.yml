@@ -94,6 +94,8 @@ jobs:
       JWT_REFRESH_TOKEN_SECRET: ci-refresh-secret
       SMS_MOCK: "true"
       E2E_BASE_URL: http://localhost:3000
+      NO_PROXY: localhost,127.0.0.1,::1
+      no_proxy: localhost,127.0.0.1,::1
     steps:
       - uses: actions/checkout@v4
       - name: Use Node.js 20
@@ -113,8 +115,20 @@ jobs:
         run: npm run build
       - name: Start backend
         run: |
-          node dist/main.js &
-          sleep 8
+          node dist/main.js > server.log 2>&1 &
+          ready=""
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/api/v1/health/live || true)
+            if [ "$code" = "200" ]; then ready=1; break; fi
+            sleep 1
+          done
+          if [ -z "$ready" ]; then
+            echo "Backend did not become ready. Last HTTP code: $code"
+            echo "--- server.log ---"
+            cat server.log
+            exit 1
+          fi
+          echo "Backend ready (HTTP 200)"
         env:
           PORT: 3000
           DATABASE_URL: mongodb://localhost:27017/saferide_dev?directConnection=true
