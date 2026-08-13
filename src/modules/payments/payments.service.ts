@@ -5,6 +5,7 @@ import {
   Logger,
   NotFoundException,
   OnModuleDestroy,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ConfigService } from '../../config/config.service';
@@ -70,10 +71,12 @@ export class PaymentsService implements OnModuleDestroy {
   }
 
   async simulateSuccess(paymentId: string) {
+    this.assertSandboxEnabled();
     return this.confirm(paymentId, 'simulated');
   }
 
   async webhookSandbox(paymentId: string, secret: string) {
+    this.assertSandboxEnabled();
     const expected =
       this.config.get('SANDBOX_WEBHOOK_SECRET') ?? 'sandbox-secret';
     if (!secret || secret !== expected) {
@@ -156,6 +159,14 @@ export class PaymentsService implements OnModuleDestroy {
     return this.publicPayment(payment);
   }
 
+  private assertSandboxEnabled(): void {
+    if (this.config.get('NODE_ENV') === 'production') {
+      throw new ServiceUnavailableException(
+        'Payment sandbox endpoints are disabled in production',
+      );
+    }
+  }
+
   private async confirm(paymentId: string, source: string) {
     const existing = await this.prisma.payment.findUnique({
       where: { id: paymentId },
@@ -202,6 +213,9 @@ export class PaymentsService implements OnModuleDestroy {
   }
 
   private scheduleAutoConfirm(paymentId: string) {
+    if (this.config.get('NODE_ENV') === 'production') {
+      return;
+    }
     const delay = this.config.get('PAYMENT_AUTO_CONFIRM_MS');
     const timer = setTimeout(() => {
       this.timers.delete(timer);

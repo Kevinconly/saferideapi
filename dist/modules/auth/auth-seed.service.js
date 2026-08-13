@@ -12,13 +12,19 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AuthSeedService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../../prisma/prisma.service");
+const config_service_1 = require("../../config/config.service");
 const auth_service_1 = require("./auth.service");
 let AuthSeedService = class AuthSeedService {
     prisma;
-    constructor(prisma) {
+    config;
+    constructor(prisma, config) {
         this.prisma = prisma;
+        this.config = config;
     }
     async onModuleInit() {
+        if (this.config.get('NODE_ENV') === 'production') {
+            return;
+        }
         try {
             if (!this.hasPrismaModels()) {
                 return;
@@ -112,6 +118,7 @@ let AuthSeedService = class AuthSeedService {
 exports.AuthSeedService = AuthSeedService;
 exports.AuthSeedService = AuthSeedService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        config_service_1.ConfigService])
 ], AuthSeedService);
 //# sourceMappingURL=auth-seed.service.js.map

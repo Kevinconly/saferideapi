@@ -65,15 +65,15 @@ export declare class PaymentsService implements OnModuleDestroy {
     }>;
     listMine(userId: string, page: number, pageSize: number): Promise<{
         items: {
+            status: import(".prisma/client").$Enums.PaymentStatus;
             id: string;
             createdAt: Date;
-            currency: string;
             userId: string | null;
-            status: import(".prisma/client").$Enums.PaymentStatus;
             rideId: string | null;
-            amountCents: number;
-            provider: string;
             providerReference: string | null;
+            amountCents: number;
+            currency: string;
+            provider: string;
             idempotencyKey: string | null;
             metadata: import("@prisma/client/runtime/library").JsonValue | null;
             refundReason: string | null;
@@ -111,6 +111,7 @@ export declare class PaymentsService implements OnModuleDestroy {
         createdAt: Date;
         refundReason: string | null;
     }>;
+    private assertSandboxEnabled;
     private confirm;
     private scheduleAutoConfirm;
     private publicPayment;

@@ -45,15 +45,15 @@ export declare class PaymentsController {
     }>;
     list(user: AuthUser, page?: string, pageSize?: string): Promise<{
         items: {
+            status: import(".prisma/client").$Enums.PaymentStatus;
             id: string;
             createdAt: Date;
-            currency: string;
             userId: string | null;
-            status: import(".prisma/client").$Enums.PaymentStatus;
             rideId: string | null;
-            amountCents: number;
-            provider: string;
             providerReference: string | null;
+            amountCents: number;
+            currency: string;
+            provider: string;
             idempotencyKey: string | null;
             metadata: import("@prisma/client/runtime/library").JsonValue | null;
             refundReason: string | null;

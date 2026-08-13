@@ -1,12 +1,19 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ConfigService } from '../../config/config.service';
 import { hashPassword, normalizePhone } from './auth.service';
 
 @Injectable()
 export class AuthSeedService implements OnModuleInit {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private config: ConfigService,
+  ) {}
 
   async onModuleInit() {
+    if (this.config.get('NODE_ENV') === 'production') {
+      return;
+    }
     try {
       if (!this.hasPrismaModels()) {
         return;

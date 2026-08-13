@@ -66,9 +66,11 @@ let PaymentsService = class PaymentsService {
         return this.publicPayment(payment);
     }
     async simulateSuccess(paymentId) {
+        this.assertSandboxEnabled();
         return this.confirm(paymentId, 'simulated');
     }
     async webhookSandbox(paymentId, secret) {
+        this.assertSandboxEnabled();
         const expected = this.config.get('SANDBOX_WEBHOOK_SECRET') ?? 'sandbox-secret';
         if (!secret || secret !== expected) {
             throw new common_1.ForbiddenException('Invalid webhook signature');
@@ -144,6 +146,11 @@ let PaymentsService = class PaymentsService {
             throw new common_1.ForbiddenException('You do not have access to this payment');
         return this.publicPayment(payment);
     }
+    assertSandboxEnabled() {
+        if (this.config.get('NODE_ENV') === 'production') {
+            throw new common_1.ServiceUnavailableException('Payment sandbox endpoints are disabled in production');
+        }
+    }
     async confirm(paymentId, source) {
         const existing = await this.prisma.payment.findUnique({
             where: { id: paymentId },
@@ -184,6 +191,9 @@ let PaymentsService = class PaymentsService {
         return this.publicPayment(updated);
     }
     scheduleAutoConfirm(paymentId) {
+        if (this.config.get('NODE_ENV') === 'production') {
+            return;
+        }
         const delay = this.config.get('PAYMENT_AUTO_CONFIRM_MS');
         const timer = setTimeout(() => {
             this.timers.delete(timer);
