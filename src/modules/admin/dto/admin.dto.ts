@@ -1,10 +1,10 @@
-import { ApiProperty } from '@nestjs/swagger'
-import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator'
+import { ApiProperty } from '@nestjs/swagger';
+import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class UpdateUserStatusDto {
   @ApiProperty({ enum: ['ACTIVE', 'SUSPENDED'] })
   @IsEnum(['ACTIVE', 'SUSPENDED'])
-  status: 'ACTIVE' | 'SUSPENDED'
+  status: 'ACTIVE' | 'SUSPENDED';
 }
 
 export class RejectDriverDto {
@@ -12,7 +12,7 @@ export class RejectDriverDto {
   @IsOptional()
   @IsString()
   @MaxLength(300)
-  reason?: string
+  reason?: string;
 }
 
 export class AdminRefundDto {
@@ -20,5 +20,5 @@ export class AdminRefundDto {
   @IsOptional()
   @IsString()
   @MaxLength(300)
-  reason?: string
+  reason?: string;
 }

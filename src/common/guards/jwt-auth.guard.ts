@@ -46,12 +46,14 @@ export class JwtAuthGuard implements CanActivate {
       const payload = await this.jwtService.verifyAsync<JwtPayload>(token, {
         secret: this.config.get('JWT_ACCESS_TOKEN_SECRET'),
       });
-      const user = await this.prisma.user.findUnique({ where: { id: payload.sub } })
+      const user = await this.prisma.user.findUnique({
+        where: { id: payload.sub },
+      });
       if (!user || user.status === 'SUSPENDED') {
-        throw new UnauthorizedException('Invalid or expired token')
+        throw new UnauthorizedException('Invalid or expired token');
       }
       if (user.tokenVersion !== payload.tokenVersion) {
-        throw new UnauthorizedException('Token no longer valid')
+        throw new UnauthorizedException('Token no longer valid');
       }
 
       request.user = {

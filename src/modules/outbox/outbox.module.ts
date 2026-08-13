@@ -1,6 +1,6 @@
-import { Module } from '@nestjs/common'
-import { OutboxService } from './outbox.service'
-import { NotificationsModule } from '../notifications/notifications.module'
+import { Module } from '@nestjs/common';
+import { OutboxService } from './outbox.service';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [NotificationsModule],

@@ -1,10 +1,22 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common'
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
-import { CurrentUser } from '../../common/decorators/current-user.decorator'
-import { Roles } from '../../common/decorators/roles.decorator'
-import type { AuthUser } from '../../common/types/auth-user'
-import { AdminService } from './admin.service'
-import { AdminRefundDto, RejectDriverDto, UpdateUserStatusDto } from './dto/admin.dto'
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
+import type { AuthUser } from '../../common/types/auth-user';
+import { AdminService } from './admin.service';
+import {
+  AdminRefundDto,
+  RejectDriverDto,
+  UpdateUserStatusDto,
+} from './dto/admin.dto';
 
 @ApiTags('admin')
 @ApiBearerAuth()
@@ -15,7 +27,7 @@ export class AdminController {
 
   @Get('stats')
   async stats() {
-    return this.admin.stats()
+    return this.admin.stats();
   }
 
   @Get('users')
@@ -24,14 +36,14 @@ export class AdminController {
     @Query('pageSize') pageSize?: string,
     @Query('search') search?: string,
   ) {
-    const p = Math.max(1, parseInt(page ?? '1', 10) || 1)
-    const ps = Math.min(100, Math.max(1, parseInt(pageSize ?? '20', 10) || 20))
-    return this.admin.listUsers(p, ps, search)
+    const p = Math.max(1, parseInt(page ?? '1', 10) || 1);
+    const ps = Math.min(100, Math.max(1, parseInt(pageSize ?? '20', 10) || 20));
+    return this.admin.listUsers(p, ps, search);
   }
 
   @Get('users/:id')
   async getUser(@Param('id') id: string) {
-    return this.admin.getUser(id)
+    return this.admin.getUser(id);
   }
 
   @Patch('users/:id/status')
@@ -40,7 +52,7 @@ export class AdminController {
     @Param('id') id: string,
     @Body() dto: UpdateUserStatusDto,
   ) {
-    return this.admin.setUserStatus(user.userId, id, dto.status)
+    return this.admin.setUserStatus(user.userId, id, dto.status);
   }
 
   @Get('drivers')
@@ -49,19 +61,19 @@ export class AdminController {
     @Query('pageSize') pageSize?: string,
     @Query('search') search?: string,
   ) {
-    const p = Math.max(1, parseInt(page ?? '1', 10) || 1)
-    const ps = Math.min(100, Math.max(1, parseInt(pageSize ?? '20', 10) || 20))
-    return this.admin.listDrivers(p, ps, search)
+    const p = Math.max(1, parseInt(page ?? '1', 10) || 1);
+    const ps = Math.min(100, Math.max(1, parseInt(pageSize ?? '20', 10) || 20));
+    return this.admin.listDrivers(p, ps, search);
   }
 
   @Get('drivers/:id')
   async getDriver(@Param('id') id: string) {
-    return this.admin.getDriver(id)
+    return this.admin.getDriver(id);
   }
 
   @Post('drivers/:id/approve')
   async approveDriver(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.admin.approveDriver(user.userId, id)
+    return this.admin.approveDriver(user.userId, id);
   }
 
   @Post('drivers/:id/reject')
@@ -70,7 +82,7 @@ export class AdminController {
     @Param('id') id: string,
     @Body() dto: RejectDriverDto,
   ) {
-    return this.admin.rejectDriver(user.userId, id, dto.reason)
+    return this.admin.rejectDriver(user.userId, id, dto.reason);
   }
 
   @Get('rides')
@@ -80,14 +92,14 @@ export class AdminController {
     @Query('state') state?: string,
     @Query('search') search?: string,
   ) {
-    const p = Math.max(1, parseInt(page ?? '1', 10) || 1)
-    const ps = Math.min(100, Math.max(1, parseInt(pageSize ?? '20', 10) || 20))
-    return this.admin.listRides(p, ps, state, search)
+    const p = Math.max(1, parseInt(page ?? '1', 10) || 1);
+    const ps = Math.min(100, Math.max(1, parseInt(pageSize ?? '20', 10) || 20));
+    return this.admin.listRides(p, ps, state, search);
   }
 
   @Get('rides/:id')
   async getRide(@Param('id') id: string) {
-    return this.admin.getRide(id)
+    return this.admin.getRide(id);
   }
 
   @Get('payments')
@@ -96,9 +108,9 @@ export class AdminController {
     @Query('pageSize') pageSize?: string,
     @Query('status') status?: string,
   ) {
-    const p = Math.max(1, parseInt(page ?? '1', 10) || 1)
-    const ps = Math.min(100, Math.max(1, parseInt(pageSize ?? '20', 10) || 20))
-    return this.admin.listPayments(p, ps, status)
+    const p = Math.max(1, parseInt(page ?? '1', 10) || 1);
+    const ps = Math.min(100, Math.max(1, parseInt(pageSize ?? '20', 10) || 20));
+    return this.admin.listPayments(p, ps, status);
   }
 
   @Post('payments/:id/refund')
@@ -107,7 +119,7 @@ export class AdminController {
     @Param('id') id: string,
     @Body() dto: AdminRefundDto,
   ) {
-    return this.admin.refundPayment(user.userId, id, dto.reason)
+    return this.admin.refundPayment(user.userId, id, dto.reason);
   }
 
   @Get('audit-logs')
@@ -117,8 +129,8 @@ export class AdminController {
     @Query('actorId') actorId?: string,
     @Query('action') action?: string,
   ) {
-    const p = Math.max(1, parseInt(page ?? '1', 10) || 1)
-    const ps = Math.min(100, Math.max(1, parseInt(pageSize ?? '20', 10) || 20))
-    return this.admin.listAuditLogs(p, ps, actorId, action)
+    const p = Math.max(1, parseInt(page ?? '1', 10) || 1);
+    const ps = Math.min(100, Math.max(1, parseInt(pageSize ?? '20', 10) || 20));
+    return this.admin.listAuditLogs(p, ps, actorId, action);
   }
 }

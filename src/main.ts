@@ -61,7 +61,10 @@ async function bootstrap() {
   await app.listen(port);
   logger.log(`SafeRide backend listening on port ${port}`);
 
-  process.on('SIGTERM', () => app.close());
-  process.on('SIGINT', () => app.close());
+  process.on('SIGTERM', () => void app.close());
+  process.on('SIGINT', () => void app.close());
 }
-bootstrap();
+void bootstrap().catch((err) => {
+  console.error('Fatal error during bootstrap', err);
+  process.exit(1);
+});

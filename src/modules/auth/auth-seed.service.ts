@@ -44,7 +44,7 @@ export class AuthSeedService implements OnModuleInit {
     } catch (err) {
       // Don't crash the app if the database isn't available during local development.
       // Log and continue so the HTTP server can start for frontend development.
-      // eslint-disable-next-line no-console
+
       console.warn(
         '[AuthSeedService] skipping seeding due to error:',
         err?.message ?? err,

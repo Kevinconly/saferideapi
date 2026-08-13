@@ -1,8 +1,10 @@
-import { Injectable } from '@nestjs/common'
-import { z } from 'zod'
+import { Injectable } from '@nestjs/common';
+import { z } from 'zod';
 
 const envSchema = z.object({
-  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  NODE_ENV: z
+    .enum(['development', 'test', 'production'])
+    .default('development'),
   PORT: z.string().default('3000'),
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().optional().default(''),
@@ -34,43 +36,42 @@ const envSchema = z.object({
   SANDBOX_WEBHOOK_SECRET: z.string().optional(),
   PAYMENT_POLL_INTERVAL_MS: z.coerce.number().default(3000),
   PAYMENT_AUTO_CONFIRM_MS: z.coerce.number().default(5000),
-})
+});
 
-export type AppConfig = z.infer<typeof envSchema>
+export type AppConfig = z.infer<typeof envSchema>;
 
 @Injectable()
 export class ConfigService {
-  private readonly config: AppConfig
+  private readonly config: AppConfig;
 
   constructor() {
-    const parsed = envSchema.safeParse(process.env)
+    const parsed = envSchema.safeParse(process.env);
     if (!parsed.success) {
-      // eslint-disable-next-line no-console
-      console.error('Invalid environment variables', parsed.error.format())
-      throw new Error('Invalid environment variables')
+      console.error('Invalid environment variables', parsed.error.format());
+      throw new Error('Invalid environment variables');
     }
-    this.config = parsed.data
+    this.config = parsed.data;
   }
 
   get<T extends keyof AppConfig>(key: T): AppConfig[T] {
-    return this.config[key]
+    return this.config[key];
   }
 
   getNumber(key: keyof AppConfig): number {
-    const val = this.get(key)
-    return Number(val)
+    const val = this.get(key);
+    return Number(val);
   }
 
   getCorsOrigins(): string[] {
-    const fromOrigin = this.config.FRONTEND_ORIGIN
-    const fromList = this.config.CORS_ORIGINS
+    const fromOrigin = this.config.FRONTEND_ORIGIN;
+    const fromList = this.config.CORS_ORIGINS;
     if (fromList) {
       return fromList
         .split(',')
         .map((s) => s.trim())
-        .filter(Boolean)
+        .filter(Boolean);
     }
-    if (fromOrigin) return [fromOrigin]
-    return ['http://localhost:3001']
+    if (fromOrigin) return [fromOrigin];
+    return ['http://localhost:3001'];
   }
 }

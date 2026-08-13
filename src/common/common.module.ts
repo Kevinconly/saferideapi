@@ -1,10 +1,10 @@
-import { Global, Module } from '@nestjs/common'
-import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core'
-import { ConfigModule } from '../config/config.module'
-import { RedisService } from './redis.service'
-import { AllExceptionsFilter } from './filters/all-exceptions.filter'
-import { TransformInterceptor } from './interceptors/transform.interceptor'
-import { VerifiedUserGuard } from './guards/verified-user.guard'
+import { Global, Module } from '@nestjs/common';
+import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
+import { ConfigModule } from '../config/config.module';
+import { RedisService } from './redis.service';
+import { AllExceptionsFilter } from './filters/all-exceptions.filter';
+import { TransformInterceptor } from './interceptors/transform.interceptor';
+import { VerifiedUserGuard } from './guards/verified-user.guard';
 
 @Global()
 @Module({

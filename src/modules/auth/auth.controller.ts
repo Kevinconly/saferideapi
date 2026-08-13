@@ -7,13 +7,13 @@ import {
   Post,
   Req,
   UnauthorizedException,
-} from '@nestjs/common'
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
-import { Request } from 'express'
-import { Public } from '../../common/decorators/public.decorator'
-import { CurrentUser } from '../../common/decorators/current-user.decorator'
-import type { AuthUser } from '../../common/types/auth-user'
-import { AuthService } from './auth.service'
+} from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Request } from 'express';
+import { Public } from '../../common/decorators/public.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import type { AuthUser } from '../../common/types/auth-user';
+import { AuthService } from './auth.service';
 import {
   LoginDto,
   LogoutDto,
@@ -21,7 +21,7 @@ import {
   RegisterDto,
   RequestOtpDto,
   VerifyOtpDto,
-} from './dto/auth.dto'
+} from './dto/auth.dto';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -32,7 +32,7 @@ export class AuthController {
   @Post('request-otp')
   @HttpCode(HttpStatus.OK)
   async requestOtp(@Body() dto: RequestOtpDto) {
-    return this.auth.requestOtp({ phone: dto.phone })
+    return this.auth.requestOtp({ phone: dto.phone });
   }
 
   @Public()
@@ -46,8 +46,8 @@ export class AuthController {
       name: dto.name,
       ip: req.ip ?? null,
       userAgent: req.headers['user-agent'] ?? null,
-    })
-    return result
+    });
+    return result;
   }
 
   @Public()
@@ -63,7 +63,7 @@ export class AuthController {
       role: dto.role,
       ip: req.ip ?? null,
       userAgent: req.headers['user-agent'] ?? null,
-    })
+    });
   }
 
   @Public()
@@ -75,7 +75,7 @@ export class AuthController {
       password: dto.password,
       ip: req.ip ?? null,
       userAgent: req.headers['user-agent'] ?? null,
-    })
+    });
   }
 
   @Public()
@@ -83,9 +83,9 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async refresh(@Body() dto: RefreshTokenDto) {
     try {
-      return await this.auth.refresh(dto.refreshToken)
+      return await this.auth.refresh(dto.refreshToken);
     } catch {
-      throw new UnauthorizedException('Invalid or expired refresh token')
+      throw new UnauthorizedException('Invalid or expired refresh token');
     }
   }
 
@@ -93,13 +93,13 @@ export class AuthController {
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   async logout(@Body() dto: LogoutDto) {
-    await this.auth.logout(dto.refreshToken)
-    return { success: true }
+    await this.auth.logout(dto.refreshToken);
+    return { success: true };
   }
 
   @ApiBearerAuth()
   @Get('me')
   async me(@CurrentUser() user: AuthUser) {
-    return this.auth.me(user.userId)
+    return this.auth.me(user.userId);
   }
 }

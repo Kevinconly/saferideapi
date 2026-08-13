@@ -30,6 +30,13 @@ enum DriverStatus {
 
 enum RideStatus {
   REQUESTED
+  MATCHING
+  RESERVED
+  OFFERED
+  EN_ROUTE_TO_PICKUP
+  ARRIVED_AT_PICKUP
+  PICKED_UP
+  EN_ROUTE_TO_DROPOFF
   PENDING_ACCEPTANCE
   ACCEPTED
   DRIVER_EN_ROUTE
@@ -47,6 +54,8 @@ enum RideStatus {
 enum PaymentStatus {
   INITIATED
   PENDING
+  PROCESSING
+  SUCCESS
   SETTLED
   FAILED
   REFUNDED
@@ -57,15 +66,6 @@ enum DocumentType {
   DRIVER_LICENSE
   VEHICLE_REGISTRATION
   INSURANCE
-}
-
-enum AuditAction {
-  USER_UPDATE
-  DRIVER_APPROVAL
-  RIDE_STATE_CHANGE
-  PAYMENT_ADJUSTMENT
-  DISPUTE_RESOLUTION
-  AUTH_EVENT
 }
 
 model User {
@@ -350,7 +350,7 @@ model AuditLog {
   actorId    String?     @db.ObjectId
   actor      User?       @relation(fields: [actorId], references: [id])
   actorRole  String?
-  action     AuditAction
+  action     String
   entityType String?
   entityId   String?
   metadata   Json?
