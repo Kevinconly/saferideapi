@@ -1,10 +1,11 @@
 import { Body, Controller, Get, NotFoundException, Param, Post, Query } from '@nestjs/common'
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
+import { RideStatus } from '@prisma/client'
 import { CurrentUser } from '../../common/decorators/current-user.decorator'
 import { Roles } from '../../common/decorators/roles.decorator'
 import type { AuthUser } from '../../common/types/auth-user'
-import { RidesService } from './rides.service'
 import { AcceptRideDto, RejectRideDto, UpdateRideStatusDto } from './dto/ride.dto'
+import { RidesService } from './rides.service'
 
 @ApiTags('rides')
 @ApiBearerAuth()
@@ -50,7 +51,7 @@ export class DriverRidesController {
     @Body() dto: UpdateRideStatusDto,
   ) {
     const driverId = await this.requireDriverId(user.userId)
-    return this.rides.updateState(driverId, id, dto.newState)
+    return this.rides.updateState(driverId, id, dto.newState as RideStatus)
   }
 
   @Get(':id')
