@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common'
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
+import { AuditAction, PaymentStatus, RideStatus } from '@prisma/client'
 import { CurrentUser } from '../../common/decorators/current-user.decorator'
 import { Roles } from '../../common/decorators/roles.decorator'
 import type { AuthUser } from '../../common/types/auth-user'
@@ -82,7 +83,7 @@ export class AdminController {
   ) {
     const p = Math.max(1, parseInt(page ?? '1', 10) || 1)
     const ps = Math.min(100, Math.max(1, parseInt(pageSize ?? '20', 10) || 20))
-    return this.admin.listRides(p, ps, state, search)
+    return this.admin.listRides(p, ps, state as RideStatus | undefined, search)
   }
 
   @Get('rides/:id')
@@ -98,7 +99,7 @@ export class AdminController {
   ) {
     const p = Math.max(1, parseInt(page ?? '1', 10) || 1)
     const ps = Math.min(100, Math.max(1, parseInt(pageSize ?? '20', 10) || 20))
-    return this.admin.listPayments(p, ps, status)
+    return this.admin.listPayments(p, ps, status as PaymentStatus | undefined)
   }
 
   @Post('payments/:id/refund')
@@ -119,6 +120,11 @@ export class AdminController {
   ) {
     const p = Math.max(1, parseInt(page ?? '1', 10) || 1)
     const ps = Math.min(100, Math.max(1, parseInt(pageSize ?? '20', 10) || 20))
-    return this.admin.listAuditLogs(p, ps, actorId, action)
+    return this.admin.listAuditLogs(
+      p,
+      ps,
+      actorId,
+      action as AuditAction | undefined,
+    )
   }
 }
