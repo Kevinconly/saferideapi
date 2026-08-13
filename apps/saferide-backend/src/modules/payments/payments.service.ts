@@ -6,7 +6,7 @@ import {
   NotFoundException,
   OnModuleDestroy,
 } from '@nestjs/common'
-import { AuditAction, PaymentStatus, RideStatus } from '@prisma/client'
+import { AuditAction, PaymentStatus, RideStatus, UserRole } from '@prisma/client'
 import { ConfigService } from '../../config/config.service'
 import { PrismaService } from '../../prisma/prisma.service'
 import { AuditService } from '../audit/audit.service'
@@ -27,7 +27,7 @@ export class PaymentsService implements OnModuleDestroy {
   async initiateForRide(userId: string, rideId: string, idempotencyKey?: string) {
     const ride = await this.prisma.ride.findUnique({ where: { id: rideId } })
     if (!ride) throw new NotFoundException('Ride not found')
-    if (ride.passengerId !== userId) throw new ForbiddenException('You cannot pay for someone else\'s ride')
+    if (ride.passengerId !== userId) throw new ForbiddenException("You cannot pay for someone else's ride")
     if (ride.state !== RideStatus.COMPLETED) {
       throw new BadRequestException('Payment is only available after the ride is completed')
     }
@@ -44,17 +44,17 @@ export class PaymentsService implements OnModuleDestroy {
         provider: 'sandbox',
         providerReference: `pay_${rideId}`,
         idempotencyKey: idempotencyKey ?? null,
-        status: PaymentStatus.PROCESSING,
+        status: PaymentStatus.INITIATED,
       },
     })
 
     await this.audit.record({
       actorId: userId,
-      actorRole: 'PASSENGER',
-      action: AuditAction.PAYMENT_PROCESSED,
+      actorRole: UserRole.PASSENGER,
+      action: AuditAction.PAYMENT_ADJUSTMENT,
       entityType: 'payment',
       entityId: payment.id,
-      metadata: { rideId, amountCents: ride.fareCents },
+      metadata: { rideId, amountCents: ride.fareCents, event: 'payment.processed' },
     })
 
     this.scheduleAutoConfirm(payment.id)
@@ -88,11 +88,11 @@ export class PaymentsService implements OnModuleDestroy {
 
     await this.audit.record({
       actorId: userId,
-      actorRole: 'PASSENGER',
-      action: AuditAction.PAYMENT_REFUNDED,
+      actorRole: UserRole.PASSENGER,
+      action: AuditAction.PAYMENT_ADJUSTMENT,
       entityType: 'payment',
       entityId: paymentId,
-      metadata: { reason: reason ?? null },
+      metadata: { reason: reason ?? null, event: 'payment.refunded' },
     })
     return this.publicPayment(updated)
   }
@@ -155,17 +155,18 @@ export class PaymentsService implements OnModuleDestroy {
 
     await this.audit.record({
       actorId: null,
-      actorRole: 'SYSTEM',
-      action: AuditAction.PAYMENT_PROCESSED,
+      actorRole: UserRole.SYSTEM,
+      action: AuditAction.PAYMENT_ADJUSTMENT,
       entityType: 'payment',
       entityId: paymentId,
-      metadata: { source, provider: 'sandbox' },
+      metadata: { source, provider: 'sandbox', event: 'payment.processed' },
     })
     return this.publicPayment(updated)
   }
 
   private scheduleAutoConfirm(paymentId: string) {
-    const delay = this.config.get('PAYMENT_AUTO_CONFIRM_MS')
+    const rawDelay = this.config.get('PAYMENT_AUTO_CONFIRM_MS')
+    const delay = rawDelay ? parseInt(rawDelay, 10) : 5000
     const timer = setTimeout(() => {
       this.timers.delete(timer)
       void this.confirm(paymentId, 'auto').catch((err) =>
