@@ -23,13 +23,13 @@ jobs:
       - name: Install
         run: npm ci
       - name: Generate Prisma client
-        run: npm --workspace=saferide-backend run prisma:generate
+        run: npm run prisma:generate
       - name: Typecheck
         run: npm run typecheck
       - name: Lint
-        run: npm --workspace=saferide-backend run lint
+        run: npm run lint
       - name: Unit tests
-        run: npm --workspace=saferide-backend run test:unit
+        run: npm run test:unit
 
   integration-tests:
     runs-on: ubuntu-latest
@@ -62,13 +62,13 @@ jobs:
       - name: Install
         run: npm ci
       - name: Generate Prisma client
-        run: npm --workspace=saferide-backend run prisma:generate
+        run: npm run prisma:generate
       - name: Apply migrations
-        run: npx --prefix apps/saferide-backend prisma db push --accept-data-loss
+        run: npx prisma db push --accept-data-loss
         env:
           DATABASE_URL: mongodb://localhost:27017/saferide_test?directConnection=true
       - name: Integration tests
-        run: npm --workspace=saferide-backend run test:integration
+        run: npm run test:integration
 
   e2e-tests:
     runs-on: ubuntu-latest
@@ -108,16 +108,16 @@ jobs:
       - name: Install
         run: npm ci
       - name: Generate Prisma client
-        run: npm --workspace=saferide-backend run prisma:generate
+        run: npm run prisma:generate
       - name: Apply migrations
-        run: npx --prefix apps/saferide-backend prisma db push --accept-data-loss
+        run: npx prisma db push --accept-data-loss
         env:
           DATABASE_URL: mongodb://localhost:27017/saferide_dev?directConnection=true
       - name: Build backend
-        run: npm --workspace=saferide-backend run build
+        run: npm run build
       - name: Start backend
         run: |
-          node apps/saferide-backend/dist/main.js &
+          node dist/main.js &
           sleep 8
         env:
           PORT: 3000
