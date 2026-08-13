@@ -1,10 +1,11 @@
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common'
+import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common'
+import { AuditAction, UserRole } from '@prisma/client'
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'crypto'
 import { ConfigService } from '../../config/config.service'
 import { PrismaService } from '../../prisma/prisma.service'
 import { AuditService } from '../audit/audit.service'
 import { OtpService } from './otp.service'
-import { TokenService, TokenPair } from './token.service'
+import { TokenPair, TokenService } from './token.service'
 
 export function normalizePhone(input: string): string {
   let phone = input.replace(/[\s-]/g, '')
@@ -37,7 +38,6 @@ export class AuthService {
     const phone = normalizePhone(input.phone)
     const { code, devCode } = await this.otp.generate(phone)
 
-    // TODO: integrate real SMS provider. devCode is returned only when SMS_MOCK=true.
     if (this.config.get('SMS_MOCK') !== 'true') {
       // eslint-disable-next-line no-console
       console.log(`[SMS][mock off] OTP for ${phone}: ${code}`)
@@ -52,7 +52,7 @@ export class AuthService {
     username?: string
     email?: string
     name?: string
-    role?: 'PASSENGER' | 'DRIVER'
+    role?: UserRole
     ip?: string | null
     userAgent?: string | null
   }): Promise<{ user: unknown; tokens: TokenPair }> {
@@ -76,7 +76,7 @@ export class AuthService {
         username: input.username ? normalizeUsername(input.username) : null,
         email: input.email?.toLowerCase() ?? null,
         name: input.name ?? null,
-        role: input.role ?? 'PASSENGER',
+        role: input.role ?? UserRole.PASSENGER,
         passwordHash: hashPassword(input.password),
         status: 'ACTIVE',
         isVerified: false,
@@ -87,11 +87,12 @@ export class AuthService {
     await this.audit.record({
       actorId: user.id,
       actorRole: user.role,
-      action: 'auth.signup',
+      action: AuditAction.AUTH_EVENT,
       entityType: 'User',
       entityId: user.id,
       ip: input.ip,
       userAgent: input.userAgent,
+      details: { event: 'auth.signup' },
     })
 
     return {
@@ -103,7 +104,7 @@ export class AuthService {
   async verifyOtp(input: {
     phone: string
     code: string
-    role?: 'PASSENGER' | 'DRIVER'
+    role?: UserRole
     name?: string
     ip?: string | null
     userAgent?: string | null
@@ -118,7 +119,7 @@ export class AuthService {
         data: {
           phone,
           name: input.name ?? null,
-          role: input.role ?? 'PASSENGER',
+          role: input.role ?? UserRole.PASSENGER,
           isVerified: true,
         },
       })
@@ -138,11 +139,12 @@ export class AuthService {
     await this.audit.record({
       actorId: user.id,
       actorRole: user.role,
-      action: 'auth.verify_otp',
+      action: AuditAction.AUTH_EVENT,
       entityType: 'User',
       entityId: user.id,
       ip: input.ip,
       userAgent: input.userAgent,
+      details: { event: 'auth.verify_otp' },
     })
 
     return {
@@ -186,11 +188,12 @@ export class AuthService {
     await this.audit.record({
       actorId: user.id,
       actorRole: user.role,
-      action: 'auth.login',
+      action: AuditAction.AUTH_EVENT,
       entityType: 'User',
       entityId: user.id,
       ip: input.ip,
       userAgent: input.userAgent,
+      details: { event: 'auth.login' },
     })
 
     return {
@@ -221,9 +224,10 @@ export class AuthService {
 
     await this.audit.record({
       actorId: existing.userId,
-      action: 'auth.logout',
+      action: AuditAction.AUTH_EVENT,
       entityType: 'User',
       entityId: existing.userId,
+      details: { event: 'auth.logout' },
     })
   }
 
