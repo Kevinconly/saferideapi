@@ -4,19 +4,23 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common'
-import { Prisma } from '@prisma/client'
+import { AuditAction, PaymentStatus, Prisma, RideStatus } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
 import { AuditService } from '../audit/audit.service'
 import { RealtimeService } from '../websocket/realtime.service'
 import { DispatchService } from './dispatch.service'
 import { computeFareCents, haversineKm, isInServiceArea } from './ride.utils'
 
-const FORWARD_TRANSITIONS: Record<string, string[]> = {
-  OFFERED: ['EN_ROUTE_TO_PICKUP'],
-  EN_ROUTE_TO_PICKUP: ['ARRIVED_AT_PICKUP'],
-  ARRIVED_AT_PICKUP: ['PICKED_UP'],
-  PICKED_UP: ['EN_ROUTE_TO_DROPOFF'],
-  EN_ROUTE_TO_DROPOFF: ['COMPLETED'],
+const FORWARD_TRANSITIONS: Record<RideStatus, RideStatus[]> = {
+  REQUESTED: [RideStatus.PENDING_ACCEPTANCE],
+  PENDING_ACCEPTANCE: [RideStatus.ACCEPTED, RideStatus.REQUESTED],
+  ACCEPTED: [RideStatus.DRIVER_EN_ROUTE],
+  DRIVER_EN_ROUTE: [RideStatus.ARRIVED],
+  ARRIVED: [RideStatus.PASSENGER_ON_BOARD],
+  PASSENGER_ON_BOARD: [RideStatus.IN_PROGRESS],
+  IN_PROGRESS: [RideStatus.COMPLETED],
+  COMPLETED: [],
+  CANCELLED: [],
 }
 
 @Injectable()
@@ -53,17 +57,17 @@ export class RidesService {
         dropoffLabel: dto.dropoffLabel ?? null,
         distanceKm,
         fareCents,
-        state: 'REQUESTED',
+        state: RideStatus.REQUESTED,
       },
     })
 
     await this.prisma.rideEvent.create({
-      data: { rideId: ride.id, actor: 'passenger', type: 'ride.requested', payload: { state: 'REQUESTED' } },
+      data: { rideId: ride.id, actor: 'passenger', type: 'ride.requested', payload: { state: RideStatus.REQUESTED } },
     })
     await this.audit.record({
       actorId: userId,
       actorRole: 'PASSENGER',
-      action: 'ride.requested',
+      action: AuditAction.RIDE_STATE_CHANGE,
       entityType: 'ride',
       entityId: ride.id,
       metadata: { distanceKm, fareCents },
@@ -129,7 +133,13 @@ export class RidesService {
     if (!ride) throw new NotFoundException('Ride not found')
     if (ride.passengerId !== userId) throw new ForbiddenException('You can only cancel your own rides')
 
-    const cancellable = ['REQUESTED', 'MATCHING', 'RESERVED', 'OFFERED', 'EN_ROUTE_TO_PICKUP', 'ARRIVED_AT_PICKUP']
+    const cancellable: RideStatus[] = [
+      RideStatus.REQUESTED,
+      RideStatus.PENDING_ACCEPTANCE,
+      RideStatus.ACCEPTED,
+      RideStatus.DRIVER_EN_ROUTE,
+      RideStatus.ARRIVED,
+    ]
     if (!cancellable.includes(ride.state)) {
       throw new BadRequestException(`Ride cannot be cancelled in state ${ride.state}`)
     }
@@ -137,10 +147,10 @@ export class RidesService {
     const updated = await this.prisma.$transaction(async (tx) => {
       const result = await tx.ride.update({
         where: { id: rideId },
-        data: { state: 'CANCELLED', cancelledBy: userId, cancelReason: reason ?? null, cancelledAt: new Date() },
+        data: { state: RideStatus.CANCELLED, cancelledBy: userId, cancelReason: reason ?? null, cancelledAt: new Date() },
       })
       await tx.rideEvent.create({
-        data: { rideId, actor: 'passenger', type: 'ride.cancelled', payload: { state: 'CANCELLED', reason: reason ?? null } },
+        data: { rideId, actor: 'passenger', type: 'ride.cancelled', payload: { state: RideStatus.CANCELLED, reason: reason ?? null } },
       })
       return result
     })
@@ -148,14 +158,14 @@ export class RidesService {
     await this.audit.record({
       actorId: userId,
       actorRole: 'PASSENGER',
-      action: 'ride.cancelled',
+      action: AuditAction.RIDE_STATE_CHANGE,
       entityType: 'ride',
       entityId: rideId,
-      metadata: { reason: reason ?? null },
+      metadata: { reason: reason ?? null, state: RideStatus.CANCELLED },
     })
-    await this.notify(ride.passengerId, 'ride.cancelled', { rideId, state: 'CANCELLED' })
+    await this.notify(ride.passengerId, 'ride.cancelled', { rideId, state: RideStatus.CANCELLED })
     if (ride.driverId) {
-      await this.realtime.emitToUser(ride.driverId, 'ride:cancelled', { rideId, state: 'CANCELLED' })
+      await this.realtime.emitToUser(ride.driverId, 'ride:cancelled', { rideId, state: RideStatus.CANCELLED })
     }
     return this.getById(userId, rideId)
   }
@@ -181,7 +191,17 @@ export class RidesService {
     return this.prisma.ride.findFirst({
       where: {
         passengerId: userId,
-        state: { in: ['REQUESTED', 'MATCHING', 'RESERVED', 'OFFERED', 'EN_ROUTE_TO_PICKUP', 'ARRIVED_AT_PICKUP', 'PICKED_UP', 'EN_ROUTE_TO_DROPOFF'] },
+        state: {
+          in: [
+            RideStatus.REQUESTED,
+            RideStatus.PENDING_ACCEPTANCE,
+            RideStatus.ACCEPTED,
+            RideStatus.DRIVER_EN_ROUTE,
+            RideStatus.ARRIVED,
+            RideStatus.PASSENGER_ON_BOARD,
+            RideStatus.IN_PROGRESS,
+          ],
+        },
       },
       orderBy: { createdAt: 'desc' },
       include: { driver: { include: { user: { select: { id: true, name: true, phone: true } } } } },
@@ -190,7 +210,19 @@ export class RidesService {
 
   async currentForDriver(driverId: string) {
     return this.prisma.ride.findFirst({
-      where: { driverId, state: { in: ['RESERVED', 'OFFERED', 'EN_ROUTE_TO_PICKUP', 'ARRIVED_AT_PICKUP', 'PICKED_UP', 'EN_ROUTE_TO_DROPOFF'] } },
+      where: {
+        driverId,
+        state: {
+          in: [
+            RideStatus.PENDING_ACCEPTANCE,
+            RideStatus.ACCEPTED,
+            RideStatus.DRIVER_EN_ROUTE,
+            RideStatus.ARRIVED,
+            RideStatus.PASSENGER_ON_BOARD,
+            RideStatus.IN_PROGRESS,
+          ],
+        },
+      },
       orderBy: { createdAt: 'desc' },
       include: { passenger: { select: { id: true, name: true, phone: true } } },
     })
@@ -200,19 +232,28 @@ export class RidesService {
     const ride = await this.prisma.ride.findUnique({ where: { id: rideId } })
     if (!ride) throw new NotFoundException('Ride not found')
     if (ride.driverId !== driverId) throw new ForbiddenException('This ride is not assigned to you')
-    if (ride.state !== 'RESERVED') throw new BadRequestException(`Ride is not awaiting acceptance (state: ${ride.state})`)
+    if (ride.state !== RideStatus.PENDING_ACCEPTANCE) {
+      throw new BadRequestException(`Ride is not awaiting acceptance (state: ${ride.state})`)
+    }
     if (ride.offerId !== offerId) throw new BadRequestException('Offer ID does not match - the offer may have expired')
 
     const updated = await this.prisma.$transaction(async (tx) => {
-      const result = await tx.ride.update({ where: { id: rideId }, data: { state: 'OFFERED' } })
+      const result = await tx.ride.update({ where: { id: rideId }, data: { state: RideStatus.ACCEPTED } })
       await tx.rideEvent.create({
-        data: { rideId, actor: 'driver', type: 'ride.accepted', payload: { state: 'OFFERED', driverId } },
+        data: { rideId, actor: 'driver', type: 'ride.accepted', payload: { state: RideStatus.ACCEPTED, driverId } },
       })
       return result
     })
 
-    await this.audit.record({ actorId: driverId, actorRole: 'DRIVER', action: 'ride.accepted', entityType: 'ride', entityId: rideId })
-    await this.notify(ride.passengerId, 'ride.status_changed', { rideId, state: 'OFFERED' })
+    await this.audit.record({
+      actorId: driverId,
+      actorRole: 'DRIVER',
+      action: AuditAction.RIDE_STATE_CHANGE,
+      entityType: 'ride',
+      entityId: rideId,
+      metadata: { state: RideStatus.ACCEPTED },
+    })
+    await this.notify(ride.passengerId, 'ride.status_changed', { rideId, state: RideStatus.ACCEPTED })
     return updated
   }
 
@@ -220,13 +261,15 @@ export class RidesService {
     const ride = await this.prisma.ride.findUnique({ where: { id: rideId } })
     if (!ride) throw new NotFoundException('Ride not found')
     if (ride.driverId !== driverId) throw new ForbiddenException('This ride is not assigned to you')
-    if (ride.state !== 'RESERVED') throw new BadRequestException(`Ride is not awaiting your response (state: ${ride.state})`)
+    if (ride.state !== RideStatus.PENDING_ACCEPTANCE) {
+      throw new BadRequestException(`Ride is not awaiting your response (state: ${ride.state})`)
+    }
     if (ride.offerId !== offerId) throw new BadRequestException('Offer ID does not match')
 
     await this.prisma.$transaction(async (tx) => {
       await tx.ride.update({
         where: { id: rideId },
-        data: { state: 'MATCHING', driverId: null, offerId: null },
+        data: { state: RideStatus.REQUESTED, driverId: null, offerId: null },
       })
       await tx.rideEvent.create({
         data: { rideId, actor: 'driver', type: 'ride.rejected', payload: { driverId } },
@@ -235,10 +278,10 @@ export class RidesService {
 
     // Re-dispatch to another driver
     this.dispatch.start(rideId)
-    return { state: 'MATCHING' }
+    return { state: RideStatus.REQUESTED }
   }
 
-  async updateState(driverId: string, rideId: string, newState: string) {
+  async updateState(driverId: string, rideId: string, newState: RideStatus) {
     const ride = await this.prisma.ride.findUnique({ where: { id: rideId } })
     if (!ride) throw new NotFoundException('Ride not found')
     if (ride.driverId !== driverId) throw new ForbiddenException('This ride is not assigned to you')
@@ -253,7 +296,7 @@ export class RidesService {
         where: { id: rideId },
         data: {
           state: newState,
-          ...(newState === 'COMPLETED' ? { completedAt: new Date() } : {}),
+          ...(newState === RideStatus.COMPLETED ? { completedAt: new Date() } : {}),
         },
       })
       await tx.rideEvent.create({
@@ -262,7 +305,7 @@ export class RidesService {
       return result
     })
 
-    if (newState === 'COMPLETED') {
+    if (newState === RideStatus.COMPLETED) {
       await this.prisma.payment.create({
         data: {
           rideId,
@@ -270,11 +313,11 @@ export class RidesService {
           amountCents: ride.fareCents,
           provider: 'sandbox',
           providerReference: `pay_${rideId}`,
-          status: 'SUCCESS',
+          status: PaymentStatus.SETTLED,
           processedAt: new Date(),
         },
       })
-      await this.notify(ride.passengerId, 'ride.completed', { rideId, state: 'COMPLETED' })
+      await this.notify(ride.passengerId, 'ride.completed', { rideId, state: RideStatus.COMPLETED })
       await this.notify(ride.passengerId, 'payment.confirmed', { rideId, amountCents: ride.fareCents })
     } else {
       await this.notify(ride.passengerId, 'ride.status_changed', { rideId, state: newState })
@@ -283,7 +326,7 @@ export class RidesService {
     await this.audit.record({
       actorId: driverId,
       actorRole: 'DRIVER',
-      action: 'ride.status_changed',
+      action: AuditAction.RIDE_STATE_CHANGE,
       entityType: 'ride',
       entityId: rideId,
       metadata: { from: ride.state, to: newState },
