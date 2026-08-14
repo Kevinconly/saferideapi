@@ -3,6 +3,7 @@ import {
   UnauthorizedException,
   ConflictException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'crypto';
 import { ConfigService } from '../../config/config.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -83,34 +84,54 @@ export class AuthService {
       );
     }
 
-    const user = await this.prisma.user.create({
-      data: {
-        phone,
-        username: input.username ? normalizeUsername(input.username) : null,
-        email: input.email?.toLowerCase() ?? null,
-        name: input.name ?? null,
-        role: input.role ?? 'PASSENGER',
-        passwordHash: hashPassword(input.password),
-        status: 'ACTIVE',
-        isVerified: false,
-      },
-    });
+    let user;
+    try {
+      user = await this.prisma.user.create({
+        data: {
+          phone,
+          username: input.username ? normalizeUsername(input.username) : null,
+          email: input.email?.toLowerCase() ?? null,
+          name: input.name ?? null,
+          role: input.role ?? 'PASSENGER',
+          passwordHash: hashPassword(input.password),
+          status: 'ACTIVE',
+          isVerified: true,
+        },
+      });
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002'
+      ) {
+        throw new ConflictException(
+          'Account with this phone, email, or username already exists',
+        );
+      }
+      throw err;
+    }
 
-    const tokens = await this.createSession(user);
-    await this.audit.record({
-      actorId: user.id,
-      actorRole: user.role,
-      action: 'auth.signup',
-      entityType: 'User',
-      entityId: user.id,
-      ip: input.ip,
-      userAgent: input.userAgent,
-    });
+    try {
+      const tokens = await this.createSession(user);
+      await this.audit.record({
+        actorId: user.id,
+        actorRole: user.role,
+        action: 'auth.signup',
+        entityType: 'User',
+        entityId: user.id,
+        ip: input.ip,
+        userAgent: input.userAgent,
+      });
 
-    return {
-      user: this.sanitize(user),
-      tokens,
-    };
+      return {
+        user: this.sanitize(user),
+        tokens,
+      };
+    } catch (err) {
+      await this.prisma.user
+        .delete({ where: { id: user.id } })
+        .catch(() => undefined);
+      throw err;
+    }
   }
 
   async verifyOtp(input: {

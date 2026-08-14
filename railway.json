@@ -1,4 +1,4 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
-  "healthcheckPath": "/api/v1/health/live"
+  "healthcheckPath": "/api/v1/health/ready"
 }
