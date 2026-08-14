@@ -74,4 +74,13 @@ export class ConfigService {
     if (fromOrigin) return [fromOrigin];
     return ['http://localhost:3001'];
   }
+
+  isOriginAllowed(origin: string): boolean {
+    const allowed = this.getCorsOrigins();
+    if (allowed.includes(origin)) return true;
+    // Allow any Vercel deployment/preview subdomain. Vercel preview URLs are
+    // ephemeral (e.g. <project>-<hash>-<uid>.vercel.app) and change on every
+    // deploy, so they cannot be enumerated in CORS_ORIGINS.
+    return origin.endsWith('.vercel.app');
+  }
 }

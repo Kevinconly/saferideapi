@@ -16,9 +16,14 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api/v1');
 
-  const origins = config.getCorsOrigins();
   app.enableCors({
-    origin: origins,
+    origin: (origin, callback) => {
+      if (!origin || config.isOriginAllowed(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`Origin ${origin} not allowed by CORS`));
+      }
+    },
     credentials: true,
   });
 
