@@ -68,12 +68,12 @@ export declare class PaymentsService implements OnModuleDestroy {
             status: import(".prisma/client").$Enums.PaymentStatus;
             id: string;
             createdAt: Date;
-            userId: string | null;
             rideId: string | null;
-            providerReference: string | null;
+            userId: string | null;
             amountCents: number;
             currency: string;
             provider: string;
+            providerReference: string | null;
             idempotencyKey: string | null;
             metadata: import("@prisma/client/runtime/library").JsonValue | null;
             refundReason: string | null;

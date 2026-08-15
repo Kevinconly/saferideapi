@@ -12,11 +12,14 @@ export declare class RidesController {
                 phone: string;
             };
         } & {
-            rating: number | null;
+            status: import(".prisma/client").$Enums.DriverStatus;
             id: string;
+            isVerified: boolean;
             createdAt: Date;
             updatedAt: Date;
+            deletedAt: Date | null;
             userId: string;
+            rating: number | null;
             vehicleMake: string | null;
             vehicleModel: string | null;
             plateNumber: string | null;
@@ -28,18 +31,15 @@ export declare class RidesController {
             approvedAt: Date | null;
             rejectedAt: Date | null;
             suspensionReason: string | null;
-            status: import(".prisma/client").$Enums.DriverStatus;
-            isVerified: boolean;
-            deletedAt: Date | null;
         }) | null;
         payment: {
+            status: import(".prisma/client").$Enums.PaymentStatus;
             id: string;
             createdAt: Date;
-            currency: string;
-            userId: string | null;
-            status: import(".prisma/client").$Enums.PaymentStatus;
             rideId: string | null;
+            userId: string | null;
             amountCents: number;
+            currency: string;
             provider: string;
             providerReference: string | null;
             idempotencyKey: string | null;
@@ -53,16 +53,19 @@ export declare class RidesController {
             phone: string;
         };
         events: {
-            id: string;
-            payload: import("@prisma/client/runtime/library").JsonValue | null;
-            createdAt: Date;
-            actor: string | null;
             type: string;
+            id: string;
+            createdAt: Date;
             rideId: string;
+            actor: string | null;
+            payload: import("@prisma/client/runtime/library").JsonValue | null;
         }[];
     } & {
         id: string;
         createdAt: Date;
+        updatedAt: Date;
+        state: import(".prisma/client").$Enums.RideStatus;
+        currency: string;
         passengerId: string;
         driverId: string | null;
         pickupLat: number;
@@ -73,12 +76,9 @@ export declare class RidesController {
         dropoffLabel: string | null;
         distanceKm: number | null;
         fareCents: number;
-        currency: string;
-        state: import(".prisma/client").$Enums.RideStatus;
         offerId: string | null;
         cancelledBy: string | null;
         cancelReason: string | null;
-        updatedAt: Date;
         cancelledAt: Date | null;
         completedAt: Date | null;
     }>;
@@ -86,13 +86,9 @@ export declare class RidesController {
         items: ({
             driver: ({
                 user: {
+                    status: string;
                     name: string | null;
                     id: string;
-                    createdAt: Date;
-                    updatedAt: Date;
-                    status: string;
-                    isVerified: boolean;
-                    deletedAt: Date | null;
                     phone: string;
                     username: string | null;
                     email: string | null;
@@ -101,16 +97,23 @@ export declare class RidesController {
                     preferredLanguage: string | null;
                     passwordHash: string | null;
                     tokenVersion: number;
+                    isVerified: boolean;
                     isPhoneVerified: boolean;
                     isEmailVerified: boolean;
                     emailVerifiedAt: Date | null;
+                    createdAt: Date;
+                    updatedAt: Date;
+                    deletedAt: Date | null;
                 };
             } & {
-                rating: number | null;
+                status: import(".prisma/client").$Enums.DriverStatus;
                 id: string;
+                isVerified: boolean;
                 createdAt: Date;
                 updatedAt: Date;
+                deletedAt: Date | null;
                 userId: string;
+                rating: number | null;
                 vehicleMake: string | null;
                 vehicleModel: string | null;
                 plateNumber: string | null;
@@ -122,13 +125,13 @@ export declare class RidesController {
                 approvedAt: Date | null;
                 rejectedAt: Date | null;
                 suspensionReason: string | null;
-                status: import(".prisma/client").$Enums.DriverStatus;
-                isVerified: boolean;
-                deletedAt: Date | null;
             }) | null;
         } & {
             id: string;
             createdAt: Date;
+            updatedAt: Date;
+            state: import(".prisma/client").$Enums.RideStatus;
+            currency: string;
             passengerId: string;
             driverId: string | null;
             pickupLat: number;
@@ -139,12 +142,9 @@ export declare class RidesController {
             dropoffLabel: string | null;
             distanceKm: number | null;
             fareCents: number;
-            currency: string;
-            state: import(".prisma/client").$Enums.RideStatus;
             offerId: string | null;
             cancelledBy: string | null;
             cancelReason: string | null;
-            updatedAt: Date;
             cancelledAt: Date | null;
             completedAt: Date | null;
         })[];
@@ -162,11 +162,14 @@ export declare class RidesController {
                 phone: string;
             };
         } & {
-            rating: number | null;
+            status: import(".prisma/client").$Enums.DriverStatus;
             id: string;
+            isVerified: boolean;
             createdAt: Date;
             updatedAt: Date;
+            deletedAt: Date | null;
             userId: string;
+            rating: number | null;
             vehicleMake: string | null;
             vehicleModel: string | null;
             plateNumber: string | null;
@@ -178,13 +181,13 @@ export declare class RidesController {
             approvedAt: Date | null;
             rejectedAt: Date | null;
             suspensionReason: string | null;
-            status: import(".prisma/client").$Enums.DriverStatus;
-            isVerified: boolean;
-            deletedAt: Date | null;
         }) | null;
     } & {
         id: string;
         createdAt: Date;
+        updatedAt: Date;
+        state: import(".prisma/client").$Enums.RideStatus;
+        currency: string;
         passengerId: string;
         driverId: string | null;
         pickupLat: number;
@@ -195,12 +198,9 @@ export declare class RidesController {
         dropoffLabel: string | null;
         distanceKm: number | null;
         fareCents: number;
-        currency: string;
-        state: import(".prisma/client").$Enums.RideStatus;
         offerId: string | null;
         cancelledBy: string | null;
         cancelReason: string | null;
-        updatedAt: Date;
         cancelledAt: Date | null;
         completedAt: Date | null;
     }) | null>;
@@ -217,11 +217,14 @@ export declare class RidesController {
                 phone: string;
             };
         } & {
-            rating: number | null;
+            status: import(".prisma/client").$Enums.DriverStatus;
             id: string;
+            isVerified: boolean;
             createdAt: Date;
             updatedAt: Date;
+            deletedAt: Date | null;
             userId: string;
+            rating: number | null;
             vehicleMake: string | null;
             vehicleModel: string | null;
             plateNumber: string | null;
@@ -233,18 +236,15 @@ export declare class RidesController {
             approvedAt: Date | null;
             rejectedAt: Date | null;
             suspensionReason: string | null;
-            status: import(".prisma/client").$Enums.DriverStatus;
-            isVerified: boolean;
-            deletedAt: Date | null;
         }) | null;
         payment: {
+            status: import(".prisma/client").$Enums.PaymentStatus;
             id: string;
             createdAt: Date;
-            currency: string;
-            userId: string | null;
-            status: import(".prisma/client").$Enums.PaymentStatus;
             rideId: string | null;
+            userId: string | null;
             amountCents: number;
+            currency: string;
             provider: string;
             providerReference: string | null;
             idempotencyKey: string | null;
@@ -258,16 +258,19 @@ export declare class RidesController {
             phone: string;
         };
         events: {
-            id: string;
-            payload: import("@prisma/client/runtime/library").JsonValue | null;
-            createdAt: Date;
-            actor: string | null;
             type: string;
+            id: string;
+            createdAt: Date;
             rideId: string;
+            actor: string | null;
+            payload: import("@prisma/client/runtime/library").JsonValue | null;
         }[];
     } & {
         id: string;
         createdAt: Date;
+        updatedAt: Date;
+        state: import(".prisma/client").$Enums.RideStatus;
+        currency: string;
         passengerId: string;
         driverId: string | null;
         pickupLat: number;
@@ -278,12 +281,9 @@ export declare class RidesController {
         dropoffLabel: string | null;
         distanceKm: number | null;
         fareCents: number;
-        currency: string;
-        state: import(".prisma/client").$Enums.RideStatus;
         offerId: string | null;
         cancelledBy: string | null;
         cancelReason: string | null;
-        updatedAt: Date;
         cancelledAt: Date | null;
         completedAt: Date | null;
     }>;
@@ -295,11 +295,14 @@ export declare class RidesController {
                 phone: string;
             };
         } & {
-            rating: number | null;
+            status: import(".prisma/client").$Enums.DriverStatus;
             id: string;
+            isVerified: boolean;
             createdAt: Date;
             updatedAt: Date;
+            deletedAt: Date | null;
             userId: string;
+            rating: number | null;
             vehicleMake: string | null;
             vehicleModel: string | null;
             plateNumber: string | null;
@@ -311,18 +314,15 @@ export declare class RidesController {
             approvedAt: Date | null;
             rejectedAt: Date | null;
             suspensionReason: string | null;
-            status: import(".prisma/client").$Enums.DriverStatus;
-            isVerified: boolean;
-            deletedAt: Date | null;
         }) | null;
         payment: {
+            status: import(".prisma/client").$Enums.PaymentStatus;
             id: string;
             createdAt: Date;
-            currency: string;
-            userId: string | null;
-            status: import(".prisma/client").$Enums.PaymentStatus;
             rideId: string | null;
+            userId: string | null;
             amountCents: number;
+            currency: string;
             provider: string;
             providerReference: string | null;
             idempotencyKey: string | null;
@@ -336,16 +336,19 @@ export declare class RidesController {
             phone: string;
         };
         events: {
-            id: string;
-            payload: import("@prisma/client/runtime/library").JsonValue | null;
-            createdAt: Date;
-            actor: string | null;
             type: string;
+            id: string;
+            createdAt: Date;
             rideId: string;
+            actor: string | null;
+            payload: import("@prisma/client/runtime/library").JsonValue | null;
         }[];
     } & {
         id: string;
         createdAt: Date;
+        updatedAt: Date;
+        state: import(".prisma/client").$Enums.RideStatus;
+        currency: string;
         passengerId: string;
         driverId: string | null;
         pickupLat: number;
@@ -356,12 +359,9 @@ export declare class RidesController {
         dropoffLabel: string | null;
         distanceKm: number | null;
         fareCents: number;
-        currency: string;
-        state: import(".prisma/client").$Enums.RideStatus;
         offerId: string | null;
         cancelledBy: string | null;
         cancelReason: string | null;
-        updatedAt: Date;
         cancelledAt: Date | null;
         completedAt: Date | null;
     }>;

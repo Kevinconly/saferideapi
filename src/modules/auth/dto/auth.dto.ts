@@ -24,11 +24,11 @@ export class VerifyOtpDto {
   @MaxLength(20)
   phone!: string;
 
-  @ApiProperty({ example: '123456' })
+  @ApiProperty({ example: '123456', required: false })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @Length(6, 6)
-  code!: string;
+  code?: string;
 
   @IsOptional()
   @IsIn(['PASSENGER', 'DRIVER'])
@@ -62,7 +62,7 @@ export class RegisterDto {
   @ApiProperty({ example: 'password123' })
   @IsString()
   @IsNotEmpty()
-  @Length(5, 100)
+  @Length(6, 100)
   password!: string;
 
   @ApiProperty({ required: false, example: 'admin' })

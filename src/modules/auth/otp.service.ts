@@ -25,6 +25,18 @@ export class OtpService {
     this.maxFailedAttempts = config.getNumber('OTP_MAX_FAILED_ATTEMPTS');
   }
 
+  /**
+   * True when no real SMS provider is configured (SMS_MOCK != 'true') and
+   * OTP_AUTO_VERIFY is enabled. In this mode verification auto-succeeds so
+   * signup never blocks users.
+   */
+  isAutoVerify(): boolean {
+    return (
+      this.config.get('SMS_MOCK') !== 'true' &&
+      this.config.get('OTP_AUTO_VERIFY') === 'true'
+    );
+  }
+
   private key(phone: string) {
     return `otp:${phone}`;
   }
@@ -71,6 +83,10 @@ export class OtpService {
     if (record.expiresAt < Date.now()) {
       await this.redis.getClient().del(this.key(phone));
       return false;
+    }
+    if (this.isAutoVerify()) {
+      await this.redis.getClient().del(this.key(phone));
+      return true;
     }
     if (record.attempts >= this.maxFailedAttempts) return false;
 

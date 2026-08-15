@@ -13,6 +13,7 @@ exports.AuthService = void 0;
 exports.normalizePhone = normalizePhone;
 exports.hashPassword = hashPassword;
 const common_1 = require("@nestjs/common");
+const client_1 = require("@prisma/client");
 const crypto_1 = require("crypto");
 const config_service_1 = require("../../config/config.service");
 const prisma_service_1 = require("../../prisma/prisma.service");
@@ -56,7 +57,8 @@ let AuthService = class AuthService {
         if (this.config.get('SMS_MOCK') !== 'true') {
             console.log(`[SMS][mock off] OTP for ${phone}: ${code}`);
         }
-        return { sent: true, devCode: devCode ? code : undefined };
+        const mode = this.otp.isAutoVerify() ? 'auto' : 'code';
+        return { sent: true, mode, devCode: devCode ? code : undefined };
     }
     async signup(input) {
         const phone = normalizePhone(input.phone);
@@ -73,36 +75,59 @@ let AuthService = class AuthService {
         if (existing) {
             throw new common_1.ConflictException('Account with this phone, email, or username already exists');
         }
-        const user = await this.prisma.user.create({
-            data: {
-                phone,
-                username: input.username ? normalizeUsername(input.username) : null,
-                email: input.email?.toLowerCase() ?? null,
-                name: input.name ?? null,
-                role: input.role ?? 'PASSENGER',
-                passwordHash: hashPassword(input.password),
-                status: 'ACTIVE',
-                isVerified: false,
-            },
-        });
-        const tokens = await this.createSession(user);
-        await this.audit.record({
-            actorId: user.id,
-            actorRole: user.role,
-            action: 'auth.signup',
-            entityType: 'User',
-            entityId: user.id,
-            ip: input.ip,
-            userAgent: input.userAgent,
-        });
-        return {
-            user: this.sanitize(user),
-            tokens,
-        };
+        let user;
+        try {
+            user = await this.prisma.user.create({
+                data: {
+                    phone,
+                    username: input.username ? normalizeUsername(input.username) : null,
+                    email: input.email?.toLowerCase() ?? null,
+                    name: input.name ?? null,
+                    role: input.role ?? 'PASSENGER',
+                    passwordHash: hashPassword(input.password),
+                    status: 'ACTIVE',
+                    isVerified: false,
+                    isPhoneVerified: false,
+                },
+            });
+        }
+        catch (err) {
+            if (err instanceof client_1.Prisma.PrismaClientKnownRequestError &&
+                err.code === 'P2002') {
+                throw new common_1.ConflictException('Account with this phone, email, or username already exists');
+            }
+            throw err;
+        }
+        try {
+            await this.ensureDriverProfile(user.id, user.role);
+            const tokens = await this.createSession(user);
+            await this.audit.record({
+                actorId: user.id,
+                actorRole: user.role,
+                action: 'auth.signup',
+                entityType: 'User',
+                entityId: user.id,
+                ip: input.ip,
+                userAgent: input.userAgent,
+            });
+            return {
+                user: this.sanitize(user),
+                tokens,
+            };
+        }
+        catch (err) {
+            await this.prisma.driver
+                .deleteMany({ where: { userId: user.id } })
+                .catch(() => undefined);
+            await this.prisma.user
+                .delete({ where: { id: user.id } })
+                .catch(() => undefined);
+            throw err;
+        }
     }
     async verifyOtp(input) {
         const phone = normalizePhone(input.phone);
-        const valid = await this.otp.verify(phone, input.code);
+        const valid = await this.otp.verify(phone, input.code ?? '');
         if (!valid)
             throw new common_1.UnauthorizedException('Invalid or expired OTP');
         let user = await this.prisma.user.findUnique({ where: { phone } });
@@ -113,13 +138,19 @@ let AuthService = class AuthService {
                     name: input.name ?? null,
                     role: input.role ?? 'PASSENGER',
                     isVerified: true,
+                    isPhoneVerified: true,
                 },
             });
+            await this.ensureDriverProfile(user.id, user.role);
         }
         else {
             user = await this.prisma.user.update({
                 where: { id: user.id },
-                data: { isVerified: true, deletedAt: null },
+                data: {
+                    isVerified: true,
+                    isPhoneVerified: true,
+                    deletedAt: null,
+                },
             });
         }
         if (user.status === 'SUSPENDED') {
@@ -215,6 +246,20 @@ let AuthService = class AuthService {
             throw new common_1.UnauthorizedException('User not found');
         return this.sanitize(user);
     }
+    async ensureDriverProfile(userId, role) {
+        if (role !== 'DRIVER')
+            return;
+        const existing = await this.prisma.driver.findUnique({ where: { userId } });
+        if (existing)
+            return;
+        await this.prisma.driver.create({
+            data: {
+                userId,
+                status: 'PENDING',
+                isVerified: false,
+            },
+        });
+    }
     async createSession(user) {
         const updatedUser = await this.prisma.user.update({
             where: { id: user.id },
@@ -244,6 +289,7 @@ let AuthService = class AuthService {
             name: user.name ?? null,
             role: user.role,
             isVerified: user.isVerified,
+            isPhoneVerified: user.isPhoneVerified ?? false,
             status: user.status,
             driver: user.driver ?? null,
         };

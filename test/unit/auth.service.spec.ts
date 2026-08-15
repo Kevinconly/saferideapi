@@ -12,6 +12,7 @@ const userRecord = {
   role: 'PASSENGER',
   status: 'ACTIVE',
   isVerified: false,
+  isPhoneVerified: false,
   tokenVersion: 0,
   driver: null,
 };
@@ -34,6 +35,16 @@ function createService(overrides: {
         overrides.update ??
         jest.fn().mockResolvedValue({ ...userRecord, tokenVersion: 1 }),
       delete: overrides.delete ?? jest.fn().mockResolvedValue(userRecord),
+    },
+    driver: {
+      findUnique: jest.fn().mockResolvedValue(null),
+      create: jest.fn().mockResolvedValue({
+        id: 'driver-1',
+        userId: 'user-1',
+        status: 'PENDING',
+        isVerified: false,
+      }),
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
   };
   const tokens = {
@@ -83,6 +94,7 @@ describe('AuthService.signup', () => {
           role: 'PASSENGER',
           status: 'ACTIVE',
           isVerified: true,
+          isPhoneVerified: false,
           passwordHash: expect.stringContaining(':'),
         }),
       }),
@@ -101,6 +113,28 @@ describe('AuthService.signup', () => {
       refreshToken: 'refresh-token',
       expiresIn: 1000,
     });
+  });
+
+  it('creates a PENDING Driver profile when role is DRIVER', async () => {
+    const { service, prisma } = createService({
+      create: jest.fn().mockResolvedValue({ ...userRecord, role: 'DRIVER' }),
+    });
+
+    await service.signup({
+      phone: '0789001234',
+      password: 'secret123',
+      role: 'DRIVER',
+    });
+
+    expect(prisma.driver.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          userId: 'user-1',
+          status: 'PENDING',
+          isVerified: false,
+        }),
+      }),
+    );
   });
 
   it('maps a unique-constraint race to ConflictException', async () => {

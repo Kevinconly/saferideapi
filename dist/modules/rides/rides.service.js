@@ -177,10 +177,16 @@ let RidesService = class RidesService {
             state: 'CANCELLED',
         });
         if (ride.driverId) {
-            this.realtime.emitToUser(ride.driverId, 'ride:cancelled', {
-                rideId,
-                state: 'CANCELLED',
+            const driver = await this.prisma.driver.findUnique({
+                where: { id: ride.driverId },
+                select: { userId: true },
             });
+            if (driver) {
+                this.realtime.emitToUser(driver.userId, 'ride:cancelled', {
+                    rideId,
+                    state: 'CANCELLED',
+                });
+            }
         }
         return this.getById(userId, rideId);
     }

@@ -40,7 +40,7 @@ export class AuthService {
 
   async requestOtp(input: {
     phone: string;
-  }): Promise<{ sent: boolean; devCode?: string }> {
+  }): Promise<{ sent: boolean; mode: 'code' | 'auto'; devCode?: string }> {
     const phone = normalizePhone(input.phone);
     const { code, devCode } = await this.otp.generate(phone);
 
@@ -49,7 +49,8 @@ export class AuthService {
       console.log(`[SMS][mock off] OTP for ${phone}: ${code}`);
     }
 
-    return { sent: true, devCode: devCode ? code : undefined };
+    const mode = this.otp.isAutoVerify() ? 'auto' : 'code';
+    return { sent: true, mode, devCode: devCode ? code : undefined };
   }
 
   async signup(input: {
@@ -95,7 +96,10 @@ export class AuthService {
           role: input.role ?? 'PASSENGER',
           passwordHash: hashPassword(input.password),
           status: 'ACTIVE',
+          // Keep signup non-blocking (passengers can book immediately, same as
+          // the deployed flow). Phone confirmation is tracked via isPhoneVerified.
           isVerified: true,
+          isPhoneVerified: false,
         },
       });
     } catch (err) {
@@ -111,6 +115,7 @@ export class AuthService {
     }
 
     try {
+      await this.ensureDriverProfile(user.id, user.role);
       const tokens = await this.createSession(user);
       await this.audit.record({
         actorId: user.id,
@@ -127,6 +132,9 @@ export class AuthService {
         tokens,
       };
     } catch (err) {
+      await this.prisma.driver
+        .deleteMany({ where: { userId: user.id } })
+        .catch(() => undefined);
       await this.prisma.user
         .delete({ where: { id: user.id } })
         .catch(() => undefined);
@@ -136,14 +144,14 @@ export class AuthService {
 
   async verifyOtp(input: {
     phone: string;
-    code: string;
+    code?: string;
     role?: 'PASSENGER' | 'DRIVER';
     name?: string;
     ip?: string | null;
     userAgent?: string | null;
   }): Promise<{ user: unknown; tokens: TokenPair }> {
     const phone = normalizePhone(input.phone);
-    const valid = await this.otp.verify(phone, input.code);
+    const valid = await this.otp.verify(phone, input.code ?? '');
     if (!valid) throw new UnauthorizedException('Invalid or expired OTP');
 
     let user = await this.prisma.user.findUnique({ where: { phone } });
@@ -154,12 +162,18 @@ export class AuthService {
           name: input.name ?? null,
           role: input.role ?? 'PASSENGER',
           isVerified: true,
+          isPhoneVerified: true,
         },
       });
+      await this.ensureDriverProfile(user.id, user.role);
     } else {
       user = await this.prisma.user.update({
         where: { id: user.id },
-        data: { isVerified: true, deletedAt: null },
+        data: {
+          isVerified: true,
+          isPhoneVerified: true,
+          deletedAt: null,
+        },
       });
     }
 
@@ -278,6 +292,19 @@ export class AuthService {
     return this.sanitize(user);
   }
 
+  private async ensureDriverProfile(userId: string, role?: string | null) {
+    if (role !== 'DRIVER') return;
+    const existing = await this.prisma.driver.findUnique({ where: { userId } });
+    if (existing) return;
+    await this.prisma.driver.create({
+      data: {
+        userId,
+        status: 'PENDING',
+        isVerified: false,
+      },
+    });
+  }
+
   private async createSession(user: {
     id: string;
     role: string;
@@ -314,6 +341,7 @@ export class AuthService {
     name?: string | null;
     role: string;
     isVerified: boolean;
+    isPhoneVerified?: boolean;
     status: string;
     driver?: unknown;
   }) {
@@ -325,6 +353,7 @@ export class AuthService {
       name: user.name ?? null,
       role: user.role,
       isVerified: user.isVerified,
+      isPhoneVerified: user.isPhoneVerified ?? false,
       status: user.status,
       driver: user.driver ?? null,
     };

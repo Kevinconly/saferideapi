@@ -7,6 +7,7 @@ export declare class AuthController {
     constructor(auth: AuthService);
     requestOtp(dto: RequestOtpDto): Promise<{
         sent: boolean;
+        mode: "code" | "auto";
         devCode?: string;
     }>;
     verifyOtp(dto: VerifyOtpDto, req: Request): Promise<{
@@ -33,6 +34,7 @@ export declare class AuthController {
         name: string | null;
         role: string;
         isVerified: boolean;
+        isPhoneVerified: boolean;
         status: string;
         driver: {} | null;
     }>;

@@ -22,6 +22,7 @@ declare const envSchema: z.ZodObject<{
     FRONTEND_URL: z.ZodDefault<z.ZodString>;
     ADMIN_URL: z.ZodDefault<z.ZodString>;
     SMS_MOCK: z.ZodDefault<z.ZodString>;
+    OTP_AUTO_VERIFY: z.ZodDefault<z.ZodEnum<["true", "false"]>>;
     SANDBOX_WEBHOOK_SECRET: z.ZodOptional<z.ZodString>;
     PAYMENT_POLL_INTERVAL_MS: z.ZodDefault<z.ZodNumber>;
     PAYMENT_AUTO_CONFIRM_MS: z.ZodDefault<z.ZodNumber>;
@@ -44,6 +45,7 @@ declare const envSchema: z.ZodObject<{
     FRONTEND_URL: string;
     ADMIN_URL: string;
     SMS_MOCK: string;
+    OTP_AUTO_VERIFY: "true" | "false";
     PAYMENT_POLL_INTERVAL_MS: number;
     PAYMENT_AUTO_CONFIRM_MS: number;
     FRONTEND_ORIGIN?: string | undefined;
@@ -74,6 +76,7 @@ declare const envSchema: z.ZodObject<{
     FRONTEND_URL?: string | undefined;
     ADMIN_URL?: string | undefined;
     SMS_MOCK?: string | undefined;
+    OTP_AUTO_VERIFY?: "true" | "false" | undefined;
     SANDBOX_WEBHOOK_SECRET?: string | undefined;
     PAYMENT_POLL_INTERVAL_MS?: number | undefined;
     PAYMENT_AUTO_CONFIRM_MS?: number | undefined;
@@ -85,5 +88,6 @@ export declare class ConfigService {
     get<T extends keyof AppConfig>(key: T): AppConfig[T];
     getNumber(key: keyof AppConfig): number;
     getCorsOrigins(): string[];
+    isOriginAllowed(origin: string): boolean;
 }
 export {};

@@ -27,6 +27,10 @@ let OtpService = class OtpService {
         this.maxPerHour = config.getNumber('OTP_MAX_PER_HOUR');
         this.maxFailedAttempts = config.getNumber('OTP_MAX_FAILED_ATTEMPTS');
     }
+    isAutoVerify() {
+        return (this.config.get('SMS_MOCK') !== 'true' &&
+            this.config.get('OTP_AUTO_VERIFY') === 'true');
+    }
     key(phone) {
         return `otp:${phone}`;
     }
@@ -67,6 +71,10 @@ let OtpService = class OtpService {
         if (record.expiresAt < Date.now()) {
             await this.redis.getClient().del(this.key(phone));
             return false;
+        }
+        if (this.isAutoVerify()) {
+            await this.redis.getClient().del(this.key(phone));
+            return true;
         }
         if (record.attempts >= this.maxFailedAttempts)
             return false;

@@ -18,9 +18,15 @@ async function bootstrap() {
     app.useLogger(logger);
     const config = app.get(config_service_1.ConfigService);
     app.setGlobalPrefix('api/v1');
-    const origins = config.getCorsOrigins();
     app.enableCors({
-        origin: origins,
+        origin: (origin, callback) => {
+            if (!origin || config.isOriginAllowed(origin)) {
+                callback(null, true);
+            }
+            else {
+                callback(new Error(`Origin ${origin} not allowed by CORS`));
+            }
+        },
         credentials: true,
     });
     app.use((0, helmet_1.default)());

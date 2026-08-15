@@ -37,6 +37,7 @@ const envSchema = zod_1.z.object({
     FRONTEND_URL: zod_1.z.string().default('http://localhost:3001'),
     ADMIN_URL: zod_1.z.string().default('http://localhost:3001/admin'),
     SMS_MOCK: zod_1.z.string().default('true'),
+    OTP_AUTO_VERIFY: zod_1.z.enum(['true', 'false']).default('true'),
     SANDBOX_WEBHOOK_SECRET: zod_1.z.string().optional(),
     PAYMENT_POLL_INTERVAL_MS: zod_1.z.coerce.number().default(3000),
     PAYMENT_AUTO_CONFIRM_MS: zod_1.z.coerce.number().default(5000),
@@ -70,6 +71,12 @@ let ConfigService = class ConfigService {
         if (fromOrigin)
             return [fromOrigin];
         return ['http://localhost:3001'];
+    }
+    isOriginAllowed(origin) {
+        const allowed = this.getCorsOrigins();
+        if (allowed.includes(origin))
+            return true;
+        return origin.endsWith('.vercel.app');
     }
 };
 exports.ConfigService = ConfigService;

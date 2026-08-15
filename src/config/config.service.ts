@@ -32,6 +32,9 @@ const envSchema = z.object({
   ADMIN_URL: z.string().default('http://localhost:3001/admin'),
 
   SMS_MOCK: z.string().default('true'),
+  // When true and no real SMS provider is wired up (SMS_MOCK != 'true'),
+  // OTP verification auto-succeeds so signup never blocks users.
+  OTP_AUTO_VERIFY: z.enum(['true', 'false']).default('true'),
 
   SANDBOX_WEBHOOK_SECRET: z.string().optional(),
   PAYMENT_POLL_INTERVAL_MS: z.coerce.number().default(3000),

@@ -15,6 +15,7 @@ export declare class AuthService {
         phone: string;
     }): Promise<{
         sent: boolean;
+        mode: 'code' | 'auto';
         devCode?: string;
     }>;
     signup(input: {
@@ -32,7 +33,7 @@ export declare class AuthService {
     }>;
     verifyOtp(input: {
         phone: string;
-        code: string;
+        code?: string;
         role?: 'PASSENGER' | 'DRIVER';
         name?: string;
         ip?: string | null;
@@ -60,9 +61,11 @@ export declare class AuthService {
         name: string | null;
         role: string;
         isVerified: boolean;
+        isPhoneVerified: boolean;
         status: string;
         driver: {} | null;
     }>;
+    private ensureDriverProfile;
     private createSession;
     private sanitize;
 }

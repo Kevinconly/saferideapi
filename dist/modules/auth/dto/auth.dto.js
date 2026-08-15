@@ -38,9 +38,9 @@ __decorate([
     __metadata("design:type", String)
 ], VerifyOtpDto.prototype, "phone", void 0);
 __decorate([
-    (0, swagger_1.ApiProperty)({ example: '123456' }),
+    (0, swagger_1.ApiProperty)({ example: '123456', required: false }),
+    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
-    (0, class_validator_1.IsNotEmpty)(),
     (0, class_validator_1.Length)(6, 6),
     __metadata("design:type", String)
 ], VerifyOtpDto.prototype, "code", void 0);
@@ -92,7 +92,7 @@ __decorate([
     (0, swagger_1.ApiProperty)({ example: 'password123' }),
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.IsNotEmpty)(),
-    (0, class_validator_1.Length)(5, 100),
+    (0, class_validator_1.Length)(6, 100),
     __metadata("design:type", String)
 ], RegisterDto.prototype, "password", void 0);
 __decorate([

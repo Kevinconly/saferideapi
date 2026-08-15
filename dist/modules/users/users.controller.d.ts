@@ -55,8 +55,6 @@ export declare class UsersController {
             id: string;
             createdAt: Date;
             updatedAt: Date;
-            passengerId: string;
-            driverId: string | null;
             pickupLat: number;
             pickupLng: number;
             pickupLabel: string | null;
@@ -72,6 +70,8 @@ export declare class UsersController {
             cancelReason: string | null;
             cancelledAt: Date | null;
             completedAt: Date | null;
+            passengerId: string;
+            driverId: string | null;
         })[];
         total: number;
         page: number;

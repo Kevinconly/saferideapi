@@ -3,7 +3,7 @@ export declare class RequestOtpDto {
 }
 export declare class VerifyOtpDto {
     phone: string;
-    code: string;
+    code?: string;
     role?: 'PASSENGER' | 'DRIVER';
     name?: string;
 }

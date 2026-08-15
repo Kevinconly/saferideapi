@@ -23,8 +23,8 @@ export declare class NotificationService {
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        userAgent: string | null;
         userId: string;
+        userAgent: string | null;
         auth: string;
         endpoint: string;
         p256dh: string;
@@ -39,9 +39,9 @@ export declare class NotificationService {
             id: string;
             createdAt: Date;
             userId: string;
+            payload: import("@prisma/client/runtime/library").JsonValue | null;
             title: string;
             body: string;
-            payload: import("@prisma/client/runtime/library").JsonValue | null;
             priority: string;
             isRead: boolean;
             readAt: Date | null;
@@ -57,9 +57,9 @@ export declare class NotificationService {
         id: string;
         createdAt: Date;
         userId: string;
+        payload: import("@prisma/client/runtime/library").JsonValue | null;
         title: string;
         body: string;
-        payload: import("@prisma/client/runtime/library").JsonValue | null;
         priority: string;
         isRead: boolean;
         readAt: Date | null;

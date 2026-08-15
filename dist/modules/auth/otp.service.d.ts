@@ -7,6 +7,7 @@ export declare class OtpService {
     private readonly maxPerHour;
     private readonly maxFailedAttempts;
     constructor(config: ConfigService, redis: RedisService);
+    isAutoVerify(): boolean;
     private key;
     private codeHash;
     private rateLimitCheck;
