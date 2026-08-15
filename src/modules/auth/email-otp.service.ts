@@ -103,13 +103,18 @@ export class EmailOtpService {
         this.expirySeconds,
       );
 
-    await this.email.send({
-      to: normalized,
-      subject: 'SafeRide verification code',
-      text: `Your SafeRide verification code is ${code}. It expires in ${Math.floor(
-        this.expirySeconds / 60,
-      )} minutes. Do not share this code.`,
-    });
+    try {
+      await this.email.send({
+        to: normalized,
+        subject: 'SafeRide verification code',
+        text: `Your SafeRide verification code is ${code}. It expires in ${Math.floor(
+          this.expirySeconds / 60,
+        )} minutes. Do not share this code.`,
+      });
+    } catch (err) {
+      await this.redis.getClient().del(this.key(normalized));
+      throw err;
+    }
   }
 
   /**

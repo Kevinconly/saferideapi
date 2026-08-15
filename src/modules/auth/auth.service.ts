@@ -1,5 +1,6 @@
 import {
   Injectable,
+  ServiceUnavailableException,
   UnauthorizedException,
   ConflictException,
   BadRequestException,
@@ -212,7 +213,14 @@ export class AuthService {
     ip?: string | null;
   }): Promise<{ success: true; message: string }> {
     const email = normalizeEmail(input.email);
-    await this.emailOtp.request(email, input.ip ?? null);
+    try {
+      await this.emailOtp.request(email, input.ip ?? null);
+    } catch (err) {
+      if (err instanceof ServiceUnavailableException) throw err;
+      throw new ServiceUnavailableException(
+        'Email service is temporarily unavailable. Please try again in a few minutes.',
+      );
+    }
     return {
       success: true,
       message: 'If this email is eligible, a verification code has been sent.',
