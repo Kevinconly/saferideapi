@@ -2,6 +2,7 @@ import {
   Injectable,
   UnauthorizedException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'crypto';
@@ -9,6 +10,7 @@ import { ConfigService } from '../../config/config.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { OtpService } from './otp.service';
+import { EmailOtpService, normalizeEmail } from './email-otp.service';
 import { TokenService, TokenPair } from './token.service';
 
 export function normalizePhone(input: string): string {
@@ -36,6 +38,7 @@ export class AuthService {
     private tokens: TokenService,
     private audit: AuditService,
     private config: ConfigService,
+    private emailOtp: EmailOtpService,
   ) {}
 
   async requestOtp(input: {
@@ -54,23 +57,23 @@ export class AuthService {
   }
 
   async signup(input: {
-    phone: string;
+    email: string;
     password: string;
+    phone?: string;
     username?: string;
-    email?: string;
     name?: string;
     role?: 'PASSENGER' | 'DRIVER';
     ip?: string | null;
     userAgent?: string | null;
   }): Promise<{ user: unknown; tokens: TokenPair }> {
-    const phone = normalizePhone(input.phone);
-    const searchFilters = [{ phone }] as Array<{
+    const email = normalizeEmail(input.email);
+    const searchFilters = [{ email }] as Array<{
       phone?: string;
       email?: string;
       username?: string;
     }>;
-    if (input.email) {
-      searchFilters.push({ email: input.email.toLowerCase() });
+    if (input.phone) {
+      searchFilters.push({ phone: normalizePhone(input.phone) });
     }
     if (input.username) {
       searchFilters.push({ username: normalizeUsername(input.username) });
@@ -81,7 +84,7 @@ export class AuthService {
     });
     if (existing) {
       throw new ConflictException(
-        'Account with this phone, email, or username already exists',
+        'An account with this email, phone, or username already exists',
       );
     }
 
@@ -89,17 +92,18 @@ export class AuthService {
     try {
       user = await this.prisma.user.create({
         data: {
-          phone,
+          email,
+          phone: input.phone ? normalizePhone(input.phone) : null,
           username: input.username ? normalizeUsername(input.username) : null,
-          email: input.email?.toLowerCase() ?? null,
           name: input.name ?? null,
           role: input.role ?? 'PASSENGER',
           passwordHash: hashPassword(input.password),
           status: 'ACTIVE',
           // Keep signup non-blocking (passengers can book immediately, same as
-          // the deployed flow). Phone confirmation is tracked via isPhoneVerified.
+          // the deployed flow). Email confirmation is tracked via isEmailVerified.
           isVerified: true,
           isPhoneVerified: false,
+          isEmailVerified: false,
         },
       });
     } catch (err) {
@@ -108,7 +112,7 @@ export class AuthService {
         err.code === 'P2002'
       ) {
         throw new ConflictException(
-          'Account with this phone, email, or username already exists',
+          'An account with this email, phone, or username already exists',
         );
       }
       throw err;
@@ -154,7 +158,7 @@ export class AuthService {
     const valid = await this.otp.verify(phone, input.code ?? '');
     if (!valid) throw new UnauthorizedException('Invalid or expired OTP');
 
-    let user = await this.prisma.user.findUnique({ where: { phone } });
+    let user = await this.prisma.user.findFirst({ where: { phone } });
     if (!user) {
       user = await this.prisma.user.create({
         data: {
@@ -196,6 +200,84 @@ export class AuthService {
     return {
       user: this.sanitize(user),
       tokens,
+    };
+  }
+
+  /**
+   * Requests an email verification code. Responds identically whether the
+   * email is known or not (no user enumeration).
+   */
+  async requestEmailOtp(input: {
+    email: string;
+    ip?: string | null;
+  }): Promise<{ success: true; message: string }> {
+    const email = normalizeEmail(input.email);
+    await this.emailOtp.request(email, input.ip ?? null);
+    return {
+      success: true,
+      message: 'If this email is eligible, a verification code has been sent.',
+    };
+  }
+
+  /**
+   * Verifies an email OTP. On success marks the user's email as verified and
+   * issues a fresh token pair.
+   */
+  async verifyEmailOtp(input: {
+    email: string;
+    otp: string;
+    ip?: string | null;
+    userAgent?: string | null;
+  }): Promise<{
+    success: true;
+    user: { id: string; email: string; isEmailVerified: boolean };
+    accessToken: string;
+    refreshToken: string;
+  }> {
+    const email = normalizeEmail(input.email);
+    const valid = await this.emailOtp.verify(email, input.otp);
+    if (!valid) {
+      throw new BadRequestException(
+        'Invalid or expired code. Please request a new code.',
+      );
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      throw new BadRequestException(
+        'Invalid or expired code. Please request a new code.',
+      );
+    }
+    if (user.status === 'SUSPENDED') {
+      throw new UnauthorizedException('Account is suspended');
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: user.id },
+      data: { isEmailVerified: true, emailVerifiedAt: new Date() },
+    });
+
+    const tokens = await this.createSession(updated);
+
+    await this.audit.record({
+      actorId: updated.id,
+      actorRole: updated.role,
+      action: 'auth.verify_email_otp',
+      entityType: 'User',
+      entityId: updated.id,
+      ip: input.ip,
+      userAgent: input.userAgent,
+    });
+
+    return {
+      success: true,
+      user: {
+        id: updated.id,
+        email: updated.email ?? email,
+        isEmailVerified: true,
+      },
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
     };
   }
 
@@ -255,6 +337,38 @@ export class AuthService {
 
   async refresh(refreshToken: string): Promise<TokenPair> {
     return this.tokens.rotateRefreshToken(refreshToken);
+  }
+
+  async checkUsernameAvailable(username: string): Promise<{
+    available: boolean;
+    normalized?: string;
+    suggestions?: string[];
+  }> {
+    const normalized = normalizeUsername(username);
+    if (!/^[a-z0-9_]{3,20}$/.test(normalized)) {
+      return { available: false, suggestions: [] };
+    }
+
+    const taken = await this.prisma.user.findFirst({
+      where: { username: normalized },
+      select: { id: true },
+    });
+    if (!taken) {
+      return { available: true, normalized };
+    }
+
+    const suggestions: string[] = [];
+    const base = normalized.length <= 16 ? normalized : normalized.slice(0, 16);
+    for (let i = 1; suggestions.length < 3 && i <= 5; i += 1) {
+      const candidate = `${base}_${i}`;
+      const conflict = await this.prisma.user.findFirst({
+        where: { username: candidate },
+        select: { id: true },
+      });
+      if (!conflict) suggestions.push(candidate);
+    }
+
+    return { available: false, normalized, suggestions };
   }
 
   async logout(refreshToken: string): Promise<void> {
@@ -335,25 +449,27 @@ export class AuthService {
 
   private sanitize(user: {
     id: string;
-    phone: string;
+    phone?: string | null;
     username?: string | null;
     email?: string | null;
     name?: string | null;
     role: string;
     isVerified: boolean;
     isPhoneVerified?: boolean;
+    isEmailVerified?: boolean;
     status: string;
     driver?: unknown;
   }) {
     return {
       id: user.id,
-      phone: user.phone,
+      phone: user.phone ?? null,
       username: user.username ?? null,
       email: user.email ?? null,
       name: user.name ?? null,
       role: user.role,
       isVerified: user.isVerified,
       isPhoneVerified: user.isPhoneVerified ?? false,
+      isEmailVerified: user.isEmailVerified ?? false,
       status: user.status,
       driver: user.driver ?? null,
     };

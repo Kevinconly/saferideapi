@@ -92,6 +92,10 @@ export class PaymentsService implements OnModuleDestroy {
     if (!payment) throw new NotFoundException('Payment not found');
     if (payment.userId !== userId)
       throw new ForbiddenException('You cannot refund this payment');
+    if (payment.status === 'REFUNDED') {
+      // Idempotent: already refunded
+      return this.publicPayment(payment);
+    }
     if (payment.status !== 'SUCCESS') {
       throw new BadRequestException(
         `Only successful payments can be refunded (status: ${payment.status})`,

@@ -29,6 +29,10 @@ enum DriverStatus {
 }
 
 enum RideStatus {
+  // Canonical lifecycle (single authoritative sequence):
+  // REQUESTED -> MATCHING -> RESERVED -> OFFERED -> EN_ROUTE_TO_PICKUP
+  //   -> ARRIVED_AT_PICKUP -> PICKED_UP -> EN_ROUTE_TO_DROPOFF -> COMPLETED
+  // Terminal: CANCELLED | DRIVER_NO_SHOW | PASSENGER_NO_SHOW | DISPUTE | FAILED
   REQUESTED
   MATCHING
   RESERVED
@@ -37,12 +41,6 @@ enum RideStatus {
   ARRIVED_AT_PICKUP
   PICKED_UP
   EN_ROUTE_TO_DROPOFF
-  PENDING_ACCEPTANCE
-  ACCEPTED
-  DRIVER_EN_ROUTE
-  ARRIVED
-  PASSENGER_ON_BOARD
-  IN_PROGRESS
   COMPLETED
   CANCELLED
   DRIVER_NO_SHOW
@@ -70,7 +68,7 @@ enum DocumentType {
 
 model User {
   id              String   @id @default(auto()) @map("_id") @db.ObjectId
-  phone             String   @unique
+  phone             String?
   username          String?  @unique
   email             String?  @unique
   name              String?

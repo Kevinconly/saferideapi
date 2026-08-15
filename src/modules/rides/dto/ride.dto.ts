@@ -1,5 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { RideStatus } from '@prisma/client';
 import {
+  IsEnum,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -7,7 +9,6 @@ import {
   Max,
   MaxLength,
   Min,
-  MinLength,
 } from 'class-validator';
 
 export class CreateRideDto {
@@ -57,11 +58,10 @@ export class AcceptRideDto {
 }
 
 export class UpdateRideStatusDto {
-  @ApiProperty({ example: 'PICKED_UP' })
-  @IsString()
+  @ApiProperty({ example: 'PICKED_UP', enum: RideStatus })
+  @IsEnum(RideStatus)
   @IsNotEmpty()
-  @MinLength(2)
-  newState: string;
+  newState: RideStatus;
 }
 
 export class RejectRideDto {

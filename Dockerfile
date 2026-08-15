@@ -17,4 +17,5 @@ COPY --from=builder /usr/src/app/dist ./dist
 COPY --from=builder /usr/src/app/package.json ./
 COPY --from=builder /usr/src/app/prisma ./prisma
 USER node
-CMD ["node", "dist/main.js"]
+# Sync Prisma schema to MongoDB (creates/updates indexes) then start the app.
+CMD ["sh", "-c", "npx prisma db push --skip-generate && node dist/main.js"]

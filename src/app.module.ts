@@ -16,6 +16,7 @@ import { OutboxModule } from './modules/outbox/outbox.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { EmailModule } from './modules/email/email.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 
@@ -42,6 +43,7 @@ import { RolesGuard } from './common/guards/roles.guard';
     NotificationsModule,
     PaymentsModule,
     AdminModule,
+    EmailModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

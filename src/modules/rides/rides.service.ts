@@ -10,14 +10,12 @@ import { AuditService } from '../audit/audit.service';
 import { RealtimeService } from '../websocket/realtime.service';
 import { DispatchService } from './dispatch.service';
 import { computeFareCents, haversineKm, isInServiceArea } from './ride.utils';
-
-const FORWARD_TRANSITIONS: Record<string, string[]> = {
-  OFFERED: ['EN_ROUTE_TO_PICKUP'],
-  EN_ROUTE_TO_PICKUP: ['ARRIVED_AT_PICKUP'],
-  ARRIVED_AT_PICKUP: ['PICKED_UP'],
-  PICKED_UP: ['EN_ROUTE_TO_DROPOFF'],
-  EN_ROUTE_TO_DROPOFF: ['COMPLETED'],
-};
+import {
+  ACTIVE_RIDE_STATES,
+  ASSIGNED_ACTIVE_STATES,
+  assertDriverForwardTransition,
+  assertTransition,
+} from './ride-state';
 
 @Injectable()
 export class RidesService {
@@ -160,19 +158,7 @@ export class RidesService {
     if (ride.passengerId !== userId)
       throw new ForbiddenException('You can only cancel your own rides');
 
-    const cancellable = [
-      'REQUESTED',
-      'MATCHING',
-      'RESERVED',
-      'OFFERED',
-      'EN_ROUTE_TO_PICKUP',
-      'ARRIVED_AT_PICKUP',
-    ];
-    if (!cancellable.includes(ride.state)) {
-      throw new BadRequestException(
-        `Ride cannot be cancelled in state ${ride.state}`,
-      );
-    }
+    assertTransition(ride.state, 'CANCELLED', 'passenger cancel');
 
     await this.prisma.$transaction(async (tx) => {
       const result = await tx.ride.update({
@@ -252,18 +238,7 @@ export class RidesService {
     return this.prisma.ride.findFirst({
       where: {
         passengerId: userId,
-        state: {
-          in: [
-            'REQUESTED',
-            'MATCHING',
-            'RESERVED',
-            'OFFERED',
-            'EN_ROUTE_TO_PICKUP',
-            'ARRIVED_AT_PICKUP',
-            'PICKED_UP',
-            'EN_ROUTE_TO_DROPOFF',
-          ],
-        },
+        state: { in: ACTIVE_RIDE_STATES },
       },
       orderBy: { createdAt: 'desc' },
       include: {
@@ -278,16 +253,7 @@ export class RidesService {
     return this.prisma.ride.findFirst({
       where: {
         driverId,
-        state: {
-          in: [
-            'RESERVED',
-            'OFFERED',
-            'EN_ROUTE_TO_PICKUP',
-            'ARRIVED_AT_PICKUP',
-            'PICKED_UP',
-            'EN_ROUTE_TO_DROPOFF',
-          ],
-        },
+        state: { in: ASSIGNED_ACTIVE_STATES },
       },
       orderBy: { createdAt: 'desc' },
       include: { passenger: { select: { id: true, name: true, phone: true } } },
@@ -299,10 +265,8 @@ export class RidesService {
     if (!ride) throw new NotFoundException('Ride not found');
     if (ride.driverId !== driverId)
       throw new ForbiddenException('This ride is not assigned to you');
-    if (ride.state !== 'RESERVED')
-      throw new BadRequestException(
-        `Ride is not awaiting acceptance (state: ${ride.state})`,
-      );
+    await this.assertDriverCanOperate(driverId);
+    assertTransition(ride.state, 'OFFERED', 'driver accept');
     if (ride.offerId !== offerId)
       throw new BadRequestException(
         'Offer ID does not match - the offer may have expired',
@@ -343,10 +307,8 @@ export class RidesService {
     if (!ride) throw new NotFoundException('Ride not found');
     if (ride.driverId !== driverId)
       throw new ForbiddenException('This ride is not assigned to you');
-    if (ride.state !== 'RESERVED')
-      throw new BadRequestException(
-        `Ride is not awaiting your response (state: ${ride.state})`,
-      );
+    await this.assertDriverCanOperate(driverId);
+    assertTransition(ride.state, 'MATCHING', 'driver reject');
     if (ride.offerId !== offerId)
       throw new BadRequestException('Offer ID does not match');
 
@@ -375,13 +337,9 @@ export class RidesService {
     if (!ride) throw new NotFoundException('Ride not found');
     if (ride.driverId !== driverId)
       throw new ForbiddenException('This ride is not assigned to you');
+    await this.assertDriverCanOperate(driverId);
 
-    const allowed = FORWARD_TRANSITIONS[ride.state];
-    if (!allowed || !allowed.includes(newState)) {
-      throw new BadRequestException(
-        `Invalid transition ${ride.state} -> ${newState}`,
-      );
-    }
+    assertDriverForwardTransition(ride.state, newState as RideStatus);
 
     const updated = await this.prisma.$transaction(async (tx) => {
       const result = await tx.ride.update({
@@ -445,6 +403,19 @@ export class RidesService {
   }
 
   // ---- helpers ----
+
+  private async assertDriverCanOperate(driverId: string): Promise<void> {
+    const driver = await this.prisma.driver.findUnique({
+      where: { id: driverId },
+      select: { isVerified: true, status: true, userId: true },
+    });
+    if (!driver) throw new ForbiddenException('Driver profile not found');
+    if (!driver.isVerified || driver.status !== 'ACTIVE') {
+      throw new ForbiddenException(
+        'Your driver account is not verified and active',
+      );
+    }
+  }
 
   private async isAssignedDriver(
     rideId: string,

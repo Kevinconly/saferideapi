@@ -1,16 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { RideStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RealtimeService } from '../websocket/realtime.service';
 import { OutboxService } from '../outbox/outbox.service';
-
-const ACTIVE_RIDE_STATES: RideStatus[] = [
-  'RESERVED',
-  'EN_ROUTE_TO_PICKUP',
-  'ARRIVED_AT_PICKUP',
-  'PICKED_UP',
-  'EN_ROUTE_TO_DROPOFF',
-];
+import { ASSIGNED_ACTIVE_STATES } from './ride-state';
 
 @Injectable()
 export class DispatchService {
@@ -41,7 +33,7 @@ export class DispatchService {
           user: { status: 'ACTIVE', role: 'DRIVER' },
           rides: {
             none: {
-              state: { in: ACTIVE_RIDE_STATES },
+              state: { in: ASSIGNED_ACTIVE_STATES },
             },
           },
         },

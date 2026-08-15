@@ -28,6 +28,8 @@ jobs:
         run: npm run typecheck
       - name: Lint
         run: npm run lint
+      - name: Build
+        run: npm run build
       - name: Unit tests
         run: npm run test:unit
 
@@ -52,6 +54,8 @@ jobs:
       REDIS_URL: redis://localhost:6379
       JWT_ACCESS_TOKEN_SECRET: ci-access-secret
       JWT_REFRESH_TOKEN_SECRET: ci-refresh-secret
+      EMAIL_PROVIDER: mock
+      EMAIL_MOCK: "true"
     steps:
       - uses: actions/checkout@v4
       - name: Use Node.js 20

@@ -1,19 +1,13 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, RideStatus, PaymentStatus } from '@prisma/client';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { PaymentStatus, Prisma, RideStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { RidesService } from '../rides/rides.service';
-
-const ACTIVE_RIDE_STATES: RideStatus[] = [
-  'REQUESTED',
-  'MATCHING',
-  'RESERVED',
-  'OFFERED',
-  'EN_ROUTE_TO_PICKUP',
-  'ARRIVED_AT_PICKUP',
-  'PICKED_UP',
-  'EN_ROUTE_TO_DROPOFF',
-];
+import { ACTIVE_RIDE_STATES } from '../rides/ride-state';
 
 @Injectable()
 export class AdminService {
@@ -255,7 +249,12 @@ export class AdminService {
     search?: string,
   ) {
     const where: Prisma.RideWhereInput = {};
-    if (state) where.state = state as RideStatus;
+    if (state) {
+      if (!isRideStatus(state)) {
+        throw new BadRequestException(`Invalid ride state filter: ${state}`);
+      }
+      where.state = state;
+    }
     if (search) {
       where.OR = [
         { id: { contains: search, mode: 'insensitive' } },
@@ -296,7 +295,14 @@ export class AdminService {
 
   async listPayments(page: number, pageSize: number, status?: string) {
     const where: Prisma.PaymentWhereInput = {};
-    if (status) where.status = status as PaymentStatus;
+    if (status) {
+      if (!isPaymentStatus(status)) {
+        throw new BadRequestException(
+          `Invalid payment status filter: ${status}`,
+        );
+      }
+      where.status = status;
+    }
     const [items, total] = await Promise.all([
       this.prisma.payment.findMany({
         where,
@@ -324,6 +330,15 @@ export class AdminService {
       where: { id: paymentId },
     });
     if (!payment) throw new NotFoundException('Payment not found');
+    if (payment.status === 'REFUNDED') {
+      // Idempotent: already refunded
+      return payment;
+    }
+    if (payment.status !== 'SUCCESS') {
+      throw new BadRequestException(
+        `Only successful payments can be refunded (status: ${payment.status})`,
+      );
+    }
 
     const updated = await this.prisma.payment.update({
       where: { id: paymentId },
@@ -372,4 +387,12 @@ export class AdminService {
       hasMore: page * pageSize < total,
     };
   }
+}
+
+function isRideStatus(value: string): value is RideStatus {
+  return Object.values(RideStatus).includes(value as RideStatus);
+}
+
+function isPaymentStatus(value: string): value is PaymentStatus {
+  return Object.values(PaymentStatus).includes(value as PaymentStatus);
 }

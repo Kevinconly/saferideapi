@@ -39,6 +39,28 @@ export class VerifyOtpDto {
   name?: string;
 }
 
+export class RequestEmailOtpDto {
+  @ApiProperty({ example: 'customer@saferide.com' })
+  @IsEmail()
+  @IsNotEmpty()
+  @MaxLength(254)
+  email!: string;
+}
+
+export class VerifyEmailOtpDto {
+  @ApiProperty({ example: 'customer@saferide.com' })
+  @IsEmail()
+  @IsNotEmpty()
+  @MaxLength(254)
+  email!: string;
+
+  @ApiProperty({ example: '123456' })
+  @IsString()
+  @IsNotEmpty()
+  @Length(6, 6)
+  otp!: string;
+}
+
 export class LoginDto {
   @ApiProperty({ example: 'admin' })
   @IsString()
@@ -53,11 +75,17 @@ export class LoginDto {
 }
 
 export class RegisterDto {
-  @ApiProperty({ example: '+2507XXXXXXXX' })
-  @IsString()
+  @ApiProperty({ example: 'customer@saferide.com' })
+  @IsEmail()
   @IsNotEmpty()
+  @MaxLength(254)
+  email!: string;
+
+  @ApiProperty({ required: false, example: '+2507XXXXXXXX' })
+  @IsOptional()
+  @IsString()
   @MaxLength(20)
-  phone!: string;
+  phone?: string;
 
   @ApiProperty({ example: 'password123' })
   @IsString()
@@ -70,12 +98,6 @@ export class RegisterDto {
   @IsString()
   @MaxLength(30)
   username?: string;
-
-  @ApiProperty({ required: false, example: 'customer@saferide.com' })
-  @IsOptional()
-  @IsString()
-  @IsEmail()
-  email?: string;
 
   @ApiProperty({ required: false, example: 'John Doe' })
   @IsOptional()

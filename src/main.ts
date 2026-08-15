@@ -10,7 +10,9 @@ import { Logger } from './logging/logger.service';
 import { ConfigService } from './config/config.service';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, { logger: false });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    logger: false,
+  });
   const logger = new Logger();
   app.useLogger(logger);
   const config = app.get(ConfigService);
@@ -33,10 +35,25 @@ async function bootstrap() {
 
   // Security middleware
   app.use(helmet());
+
+  // Rate limiting with per-endpoint caps. A single limiter with a path-aware
+  // `max` avoids express-rate-limit's ERR_ERL_DOUBLE_COUNT validation that
+  // fires when multiple limiter instances match the same request.
   app.use(
     rateLimit({
       windowMs: 60 * 1000,
-      max: 300,
+      max: (request: { path?: string }) => {
+        const path = request.path ?? '';
+        if (path.startsWith('/api/v1/auth/email/request-otp')) return 5;
+        if (path.startsWith('/api/v1/auth/email/verify-otp')) return 10;
+        if (path.startsWith('/api/v1/auth/login')) return 10;
+        if (path.startsWith('/api/v1/auth/request-otp')) return 5;
+        if (path.startsWith('/api/v1/auth/username-available')) return 60;
+        if (path.startsWith('/api/v1/auth/verify-otp')) return 10;
+        if (path.startsWith('/api/v1/auth/token/refresh')) return 30;
+        if (path.startsWith('/api/v1/health')) return 1000;
+        return 300;
+      },
       standardHeaders: true,
     }),
   );

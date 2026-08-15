@@ -78,7 +78,7 @@ export class AuthSeedService implements OnModuleInit {
     isVerified: boolean;
   }) {
     const phone = normalizePhone(input.phone);
-    const existing = await this.prisma.user.findUnique({ where: { phone } });
+    const existing = await this.prisma.user.findFirst({ where: { phone } });
     if (existing) {
       const updates: { username?: string | null; email?: string | null } = {};
       if (input.username && existing.username !== input.username) {

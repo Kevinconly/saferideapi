@@ -61,7 +61,7 @@ export class UsersService {
 
   private sanitize(user: {
     id: string;
-    phone: string;
+    phone?: string | null;
     email?: string | null;
     name?: string | null;
     role: string;
@@ -71,7 +71,7 @@ export class UsersService {
   }) {
     return {
       id: user.id,
-      phone: user.phone,
+      phone: user.phone ?? null,
       email: user.email ?? null,
       name: user.name ?? null,
       role: user.role,

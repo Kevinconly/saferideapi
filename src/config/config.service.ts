@@ -21,6 +21,25 @@ const envSchema = z.object({
   OTP_MAX_PER_DAY_PER_IP: z.coerce.number().default(20),
   OTP_MAX_FAILED_ATTEMPTS: z.coerce.number().default(5),
 
+  // Email OTP (Resend) delivery
+  EMAIL_PROVIDER: z.enum(['resend', 'smtp', 'mock']).default('mock'),
+  RESEND_API_KEY: z.string().optional().default(''),
+  EMAIL_FROM: z.string().default('SafeRide Kigali <no-reply@saferide.rw>'),
+  // When true, the code is logged to the console instead of sent (local dev).
+  EMAIL_MOCK: z.enum(['true', 'false']).default('true'),
+  // SMTP delivery (EMAIL_PROVIDER=smtp): Gmail app password, Brevo, SendGrid...
+  SMTP_HOST: z.string().optional().default(''),
+  SMTP_PORT: z.coerce.number().default(587),
+  SMTP_SECURE: z.enum(['true', 'false']).default('false'),
+  SMTP_USER: z.string().optional().default(''),
+  SMTP_PASS: z.string().optional().default(''),
+  EMAIL_OTP_EXPIRY_SECONDS: z.coerce.number().default(300),
+  EMAIL_OTP_MAX_PER_60S: z.coerce.number().default(1),
+  EMAIL_OTP_MAX_PER_HOUR: z.coerce.number().default(5),
+  EMAIL_OTP_MAX_FAILED_ATTEMPTS: z.coerce.number().default(5),
+  // App-level salt mixed into the OTP hash before it is stored.
+  EMAIL_OTP_HASH_SALT: z.string().default('saferide-email-otp'),
+
   VAPID_PUBLIC_KEY: z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),
   VAPID_SUBJECT: z.string().default('mailto:ops@saferide.rw'),
