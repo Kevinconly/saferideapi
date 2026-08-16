@@ -46,6 +46,14 @@ const envSchema = z.object({
   // App-level salt mixed into the OTP hash before it is stored.
   EMAIL_OTP_HASH_SALT: z.string().default('saferide-email-otp'),
 
+  // Password reset (email magic-link token)
+  PASSWORD_RESET_TOKEN_EXPIRY_SECONDS: z.coerce.number().default(900),
+  PASSWORD_RESET_MAX_PER_HOUR: z.coerce.number().default(5),
+  PASSWORD_RESET_HASH_SALT: z.string().default('saferide-password-reset'),
+  // Full reset URL template override (e.g. https://saferide.rw/auth/reset-password).
+  // Falls back to FRONTEND_URL + '/auth/reset-password' when empty.
+  PASSWORD_RESET_URL: z.string().optional().default(''),
+
   VAPID_PUBLIC_KEY: z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),
   VAPID_SUBJECT: z.string().default('mailto:ops@saferide.rw'),

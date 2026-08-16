@@ -5,6 +5,7 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { AuthController } from '../../src/modules/auth/auth.controller';
 import { AuthService } from '../../src/modules/auth/auth.service';
+import { PasswordResetService } from '../../src/modules/auth/password-reset.service';
 import { EmailOtpService } from '../../src/modules/auth/email-otp.service';
 import { EmailService } from '../../src/modules/email/email.service';
 import { ConfigService } from '../../src/config/config.service';
@@ -129,6 +130,7 @@ describe('Email OTP endpoints (integration)', () => {
       controllers: [AuthController],
       providers: [
         AuthService,
+        PasswordResetService,
         EmailOtpService,
         { provide: ConfigService, useValue: config },
         { provide: EmailService, useValue: email },

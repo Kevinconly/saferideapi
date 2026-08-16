@@ -88,37 +88,36 @@ const testConfig = {
   EMAIL_PROVIDER: 'mock',
   EMAIL_FROM: 'SafeRide <no-reply@saferide.rw>',
   RESEND_API_KEY: '',
+  PASSWORD_RESET_TOKEN_EXPIRY_SECONDS: '900',
+  PASSWORD_RESET_MAX_PER_HOUR: '5',
+  PASSWORD_RESET_HASH_SALT: 'test-salt',
+  PASSWORD_RESET_URL: 'https://saferide.rw/auth/reset-password',
+  FRONTEND_URL: 'http://localhost:3001',
 };
 
-describe('Signup + username availability (integration)', () => {
+describe('Password reset (integration)', () => {
   let app: INestApplication<App>;
-  let prismaFindFirst: jest.Mock;
-  let prismaCreate: jest.Mock;
+  let prismaFindUnique: jest.Mock;
   let prismaUpdate: jest.Mock;
-  let prismaDelete: jest.Mock;
   let emailSend: jest.Mock;
+  let revokeTokens: jest.Mock;
 
   beforeEach(async () => {
-    prismaFindFirst = jest.fn().mockResolvedValue(null);
-    prismaCreate = jest.fn().mockResolvedValue({
+    prismaFindUnique = jest.fn().mockResolvedValue({
       id: 'user-1',
       email: 'probe@saferide.com',
-      phone: null,
-      username: 'probe',
-      name: 'Probe',
       role: 'PASSENGER',
       status: 'ACTIVE',
-      isVerified: true,
-      isPhoneVerified: false,
-      isEmailVerified: false,
-      tokenVersion: 0,
     });
     prismaUpdate = jest.fn().mockResolvedValue({
-      ...prismaCreate.getMockImplementation()(),
-      tokenVersion: 1,
+      id: 'user-1',
+      email: 'probe@saferide.com',
+      role: 'PASSENGER',
+      status: 'ACTIVE',
+      tokenVersion: 2,
     });
-    prismaDelete = jest.fn().mockResolvedValue({ id: 'user-1' });
     emailSend = jest.fn().mockResolvedValue(undefined);
+    revokeTokens = jest.fn().mockResolvedValue(undefined);
 
     const config = {
       get: (k: string) => (testConfig as Record<string, string>)[k],
@@ -132,19 +131,12 @@ describe('Signup + username availability (integration)', () => {
 
     const prisma = {
       user: {
-        findFirst: prismaFindFirst,
-        create: prismaCreate,
+        findUnique: prismaFindUnique,
         update: prismaUpdate,
-        delete: prismaDelete,
       },
       driver: {
         findUnique: jest.fn().mockResolvedValue(null),
-        create: jest.fn().mockResolvedValue({
-          id: 'driver-1',
-          userId: 'user-1',
-          status: 'PENDING',
-          isVerified: false,
-        }),
+        create: jest.fn().mockResolvedValue({ id: 'driver-1' }),
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
       $transaction: jest
@@ -157,7 +149,7 @@ describe('Signup + username availability (integration)', () => {
       createRefreshToken: jest
         .fn()
         .mockResolvedValue({ token: 'refresh-token', expiresInMs: 1000 }),
-      revokeUserRefreshTokens: jest.fn().mockResolvedValue(undefined),
+      revokeUserRefreshTokens: revokeTokens,
     };
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -191,91 +183,88 @@ describe('Signup + username availability (integration)', () => {
     await app.close();
   });
 
-  it('signup creates an email-first account without a phone', async () => {
-    const res = await request(app.getHttpServer())
-      .post('/auth/signup')
-      .send({
-        email: 'Probe@Saferide.com',
-        password: 'secret123',
-        username: 'Probe',
-        name: 'Probe',
-      })
-      .expect(201);
+  function lastEmail(): { to: string; html: string; text: string } {
+    return emailSend.mock.calls.at(-1)[0] as {
+      to: string;
+      html: string;
+      text: string;
+    };
+  }
 
-    expect(prismaCreate).toHaveBeenCalledWith(
+  it('forgot sends a reset email and reset completes the change', async () => {
+    await request(app.getHttpServer())
+      .post('/auth/password/forgot')
+      .send({ email: 'Probe@Saferide.com' })
+      .expect(200);
+
+    const sent = lastEmail();
+    expect(sent.to).toBe('probe@saferide.com');
+    expect(sent.html).toContain(
+      'https://saferide.rw/auth/reset-password?token=',
+    );
+    const token = /token=([A-Za-z0-9_-]+)/.exec(sent.html)![1];
+
+    await request(app.getHttpServer())
+      .post('/auth/password/reset')
+      .send({ token, password: 'newSecret123' })
+      .expect(200)
+      .expect((res) => {
+        expect(res.body.success).toBe(true);
+      });
+
+    expect(prismaUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          email: 'probe@saferide.com',
-          phone: null,
-          username: 'probe',
+          passwordHash: expect.stringContaining(':'),
+          tokenVersion: { increment: 1 },
         }),
       }),
     );
-    expect(res.body.user).toMatchObject({
-      id: 'user-1',
-      email: 'probe@saferide.com',
-      username: 'probe',
-    });
+    expect(revokeTokens).toHaveBeenCalledWith('user-1');
   });
 
-  it('signup rejects a duplicate email with 409', async () => {
-    prismaFindFirst.mockResolvedValueOnce({ id: 'existing' });
+  it('forgot returns the same message for an unknown email', async () => {
+    prismaFindUnique.mockResolvedValue(null);
 
     await request(app.getHttpServer())
-      .post('/auth/signup')
-      .send({ email: 'probe@saferide.com', password: 'secret123' })
-      .expect(409);
+      .post('/auth/password/forgot')
+      .send({ email: 'nobody@example.com' })
+      .expect(200)
+      .expect((res) => {
+        expect(res.body.success).toBe(true);
+      });
+    expect(emailSend).not.toHaveBeenCalled();
   });
 
-  it('signup requires an email', async () => {
+  it('reset rejects a token that was already used', async () => {
     await request(app.getHttpServer())
-      .post('/auth/signup')
-      .send({ password: 'secret123' })
+      .post('/auth/password/forgot')
+      .send({ email: 'probe@saferide.com' })
+      .expect(200);
+    const token = /token=([A-Za-z0-9_-]+)/.exec(lastEmail().html)![1];
+
+    await request(app.getHttpServer())
+      .post('/auth/password/reset')
+      .send({ token, password: 'newSecret123' })
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .post('/auth/password/reset')
+      .send({ token, password: 'anotherPass123' })
       .expect(400);
   });
 
-  it('username-available returns available for a free username', async () => {
-    const res = await request(app.getHttpServer())
-      .get('/auth/username-available')
-      .query({ username: 'Probe_1' })
-      .expect(200);
-
-    expect(res.body).toEqual({
-      available: true,
-      normalized: 'probe_1',
-    });
-    expect(prismaFindFirst).toHaveBeenCalledWith({
-      where: { username: 'probe_1' },
-      select: { id: true },
-    });
+  it('reset rejects a bogus token with 400', async () => {
+    await request(app.getHttpServer())
+      .post('/auth/password/reset')
+      .send({ token: 'not-a-real-token', password: 'newSecret123' })
+      .expect(400);
   });
 
-  it('username-available returns taken with suggestions', async () => {
-    let call = 0;
-    prismaFindFirst.mockImplementation(() => {
-      call += 1;
-      return Promise.resolve(call === 1 ? { id: 'taken' } : null);
-    });
-
-    const res = await request(app.getHttpServer())
-      .get('/auth/username-available')
-      .query({ username: 'probe' })
-      .expect(200);
-
-    expect(res.body).toEqual({
-      available: false,
-      normalized: 'probe',
-      suggestions: ['probe_1', 'probe_2', 'probe_3'],
-    });
-  });
-
-  it('username-available rejects invalid usernames', async () => {
-    const res = await request(app.getHttpServer())
-      .get('/auth/username-available')
-      .query({ username: 'a b@c!' })
-      .expect(200);
-
-    expect(res.body).toEqual({ available: false, suggestions: [] });
-    expect(prismaFindFirst).not.toHaveBeenCalled();
+  it('validates input (missing password)', async () => {
+    await request(app.getHttpServer())
+      .post('/auth/password/reset')
+      .send({ token: 'some-token' })
+      .expect(400);
   });
 });

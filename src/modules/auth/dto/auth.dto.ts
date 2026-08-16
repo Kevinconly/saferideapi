@@ -115,6 +115,28 @@ export class RegisterDto {
   role?: 'PASSENGER' | 'DRIVER';
 }
 
+export class RequestPasswordResetDto {
+  @ApiProperty({ example: 'customer@saferide.com' })
+  @IsEmail()
+  @IsNotEmpty()
+  @MaxLength(254)
+  email!: string;
+}
+
+export class ResetPasswordDto {
+  @ApiProperty({ example: 'abc123resetToken' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(500)
+  token!: string;
+
+  @ApiProperty({ example: 'newPassword123' })
+  @IsString()
+  @IsNotEmpty()
+  @Length(6, 100)
+  password!: string;
+}
+
 export class RefreshTokenDto {
   @ApiProperty()
   @IsString()

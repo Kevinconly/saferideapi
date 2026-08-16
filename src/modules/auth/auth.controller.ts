@@ -15,6 +15,7 @@ import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/types/auth-user';
 import { AuthService } from './auth.service';
+import { PasswordResetService } from './password-reset.service';
 import {
   LoginDto,
   LogoutDto,
@@ -22,6 +23,8 @@ import {
   RegisterDto,
   RequestEmailOtpDto,
   RequestOtpDto,
+  RequestPasswordResetDto,
+  ResetPasswordDto,
   VerifyEmailOtpDto,
   VerifyOtpDto,
 } from './dto/auth.dto';
@@ -29,7 +32,10 @@ import {
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private auth: AuthService) {}
+  constructor(
+    private auth: AuthService,
+    private passwordReset: PasswordResetService,
+  ) {}
 
   @Public()
   @Post('request-otp')
@@ -126,6 +132,31 @@ export class AuthController {
   async logout(@Body() dto: LogoutDto) {
     await this.auth.logout(dto.refreshToken);
     return { success: true };
+  }
+
+  @Public()
+  @Post('password/forgot')
+  @HttpCode(HttpStatus.OK)
+  async requestPasswordReset(
+    @Body() dto: RequestPasswordResetDto,
+    @Req() req: Request,
+  ) {
+    return this.passwordReset.requestPasswordReset({
+      email: dto.email,
+      ip: req.ip ?? null,
+    });
+  }
+
+  @Public()
+  @Post('password/reset')
+  @HttpCode(HttpStatus.OK)
+  async resetPassword(@Body() dto: ResetPasswordDto, @Req() req: Request) {
+    return this.passwordReset.resetPassword({
+      token: dto.token,
+      password: dto.password,
+      ip: req.ip ?? null,
+      userAgent: req.headers['user-agent'] ?? null,
+    });
   }
 
   @ApiBearerAuth()

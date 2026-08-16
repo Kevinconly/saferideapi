@@ -4,6 +4,7 @@ import { AuthService } from './auth.service';
 import { OtpService } from './otp.service';
 import { EmailOtpService } from './email-otp.service';
 import { TokenService } from './token.service';
+import { PasswordResetService } from './password-reset.service';
 import { AuditModule } from '../audit/audit.module';
 import { EmailModule } from '../email/email.module';
 import { AuthSeedService } from './auth-seed.service';
@@ -16,6 +17,7 @@ import { AuthSeedService } from './auth-seed.service';
     OtpService,
     EmailOtpService,
     TokenService,
+    PasswordResetService,
     AuthSeedService,
   ],
   exports: [AuthService, TokenService],
