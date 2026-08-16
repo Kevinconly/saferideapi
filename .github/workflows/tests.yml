@@ -55,7 +55,7 @@ jobs:
       JWT_ACCESS_TOKEN_SECRET: ci-access-secret
       JWT_REFRESH_TOKEN_SECRET: ci-refresh-secret
       EMAIL_PROVIDER: mock
-      EMAIL_MOCK: "true"
+      EMAIL_MOCK: 'true'
     steps:
       - uses: actions/checkout@v4
       - name: Use Node.js 20
@@ -96,10 +96,9 @@ jobs:
       REDIS_URL: redis://localhost:6379
       JWT_ACCESS_TOKEN_SECRET: ci-access-secret
       JWT_REFRESH_TOKEN_SECRET: ci-refresh-secret
-      SMS_MOCK: "true"
+      SMS_MOCK: 'true'
       E2E_BASE_URL: http://localhost:3000
       NO_PROXY: localhost,127.0.0.1,::1
-      no_proxy: localhost,127.0.0.1,::1
     steps:
       - uses: actions/checkout@v4
       - name: Use Node.js 20
@@ -139,7 +138,7 @@ jobs:
           REDIS_URL: redis://localhost:6379
           JWT_ACCESS_TOKEN_SECRET: ci-access-secret
           JWT_REFRESH_TOKEN_SECRET: ci-refresh-secret
-          SMS_MOCK: "true"
+          SMS_MOCK: 'true'
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
       - name: Run Playwright tests
