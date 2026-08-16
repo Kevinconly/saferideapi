@@ -96,8 +96,11 @@ jobs:
       REDIS_URL: redis://localhost:6379
       JWT_ACCESS_TOKEN_SECRET: ci-access-secret
       JWT_REFRESH_TOKEN_SECRET: ci-refresh-secret
-      SMS_MOCK: 'true'
+      SMS_MOCK: "true"
       E2E_BASE_URL: http://localhost:3000
+      FRONTEND_URL: http://localhost:3001
+      PASSWORD_RESET_HASH_SALT: ci-password-reset-salt
+      EMAIL_OTP_HASH_SALT: ci-email-otp-salt
       NO_PROXY: localhost,127.0.0.1,::1
     steps:
       - uses: actions/checkout@v4
@@ -138,7 +141,10 @@ jobs:
           REDIS_URL: redis://localhost:6379
           JWT_ACCESS_TOKEN_SECRET: ci-access-secret
           JWT_REFRESH_TOKEN_SECRET: ci-refresh-secret
-          SMS_MOCK: 'true'
+          SMS_MOCK: "true"
+          FRONTEND_URL: http://localhost:3001
+          PASSWORD_RESET_HASH_SALT: ci-password-reset-salt
+          EMAIL_OTP_HASH_SALT: ci-email-otp-salt
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
       - name: Run Playwright tests

@@ -5,6 +5,9 @@ process.env.DATABASE_URL = 'postgres://postgres:postgres@localhost:5432/test';
 process.env.REDIS_URL = 'redis://localhost:6379';
 process.env.JWT_ACCESS_TOKEN_SECRET = 'test-access-secret';
 process.env.JWT_REFRESH_TOKEN_SECRET = 'test-refresh-secret';
+process.env.FRONTEND_URL = 'http://localhost:3001';
+process.env.PASSWORD_RESET_HASH_SALT = 'test-password-reset-salt';
+process.env.EMAIL_OTP_HASH_SALT = 'test-email-otp-salt';
 
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { RedisService } from '../../src/common/redis.service';

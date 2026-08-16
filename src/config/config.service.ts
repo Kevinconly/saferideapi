@@ -43,13 +43,15 @@ const envSchema = z.object({
   EMAIL_OTP_MAX_PER_60S: z.coerce.number().default(1),
   EMAIL_OTP_MAX_PER_HOUR: z.coerce.number().default(5),
   EMAIL_OTP_MAX_FAILED_ATTEMPTS: z.coerce.number().default(5),
-  // App-level salt mixed into the OTP hash before it is stored.
-  EMAIL_OTP_HASH_SALT: z.string().default('saferide-email-otp'),
+  // App-level salt mixed into the OTP hash before it is stored. Required per
+  // environment (must be unique per deployment, never committed as a default).
+  EMAIL_OTP_HASH_SALT: z.string().min(1),
 
   // Password reset (email magic-link token)
   PASSWORD_RESET_TOKEN_EXPIRY_SECONDS: z.coerce.number().default(900),
   PASSWORD_RESET_MAX_PER_HOUR: z.coerce.number().default(5),
-  PASSWORD_RESET_HASH_SALT: z.string().default('saferide-password-reset'),
+  // Required per environment (unique per deployment, never a committed default).
+  PASSWORD_RESET_HASH_SALT: z.string().min(1),
   // Full reset URL template override (e.g. https://saferide.rw/auth/reset-password).
   // Falls back to FRONTEND_URL + '/auth/reset-password' when empty.
   PASSWORD_RESET_URL: z.string().optional().default(''),
@@ -62,10 +64,10 @@ const envSchema = z.object({
   LOG_LEVEL: z.string().default('info'),
 
   // Base URL of the deployed web app. Used to build password-reset links, so
-  // in production this must NOT be localhost or every emailed link is dead.
-  // Defaults to the deployed frontend; override with FRONTEND_URL per env.
-  FRONTEND_URL: z.string().default('https://saferide-alone-0d28.vercel.app'),
-  ADMIN_URL: z.string().default('http://localhost:3001/admin'),
+  // it must be set per environment (production = the deployed frontend, never
+  // localhost). Required — no code default, set it in .env / the platform.
+  FRONTEND_URL: z.string().min(1),
+  ADMIN_URL: z.string().default(''),
 
   SMS_MOCK: z.string().default('true'),
   // When true and no real SMS provider is wired up (SMS_MOCK != 'true'),
@@ -102,7 +104,6 @@ export class ConfigService {
   }
 
   getCorsOrigins(): string[] {
-    const fromOrigin = this.config.FRONTEND_ORIGIN;
     const fromList = this.config.CORS_ORIGINS;
     if (fromList) {
       return fromList
@@ -110,8 +111,10 @@ export class ConfigService {
         .map((s) => s.trim())
         .filter(Boolean);
     }
-    if (fromOrigin) return [fromOrigin];
-    return ['http://localhost:3001'];
+    if (this.config.FRONTEND_ORIGIN) return [this.config.FRONTEND_ORIGIN];
+    // No hard-coded fallback: derive the default origin from the required
+    // FRONTEND_URL so cross-origin requests work per environment.
+    return [this.config.FRONTEND_URL];
   }
 
   isOriginAllowed(origin: string): boolean {

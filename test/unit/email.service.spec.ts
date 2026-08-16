@@ -10,6 +10,9 @@ function makeConfig(overrides: Record<string, string> = {}): ConfigService {
     DATABASE_URL: 'postgres://postgres:postgres@localhost:5432/test',
     JWT_ACCESS_TOKEN_SECRET: 'access-secret',
     JWT_REFRESH_TOKEN_SECRET: 'refresh-secret',
+    FRONTEND_URL: 'http://localhost:3001',
+    PASSWORD_RESET_HASH_SALT: 'test-password-reset-salt',
+    EMAIL_OTP_HASH_SALT: 'test-email-otp-salt',
     ...overrides,
   };
   const previous = { ...process.env };
