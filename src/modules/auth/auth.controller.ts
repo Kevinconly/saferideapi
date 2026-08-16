@@ -88,6 +88,12 @@ export class AuthController {
   }
 
   @Public()
+  @Get('email-available')
+  async emailAvailable(@Query('email') email?: string) {
+    return this.auth.checkEmailAvailable(email ?? '');
+  }
+
+  @Public()
   @Post('signup')
   @HttpCode(HttpStatus.CREATED)
   async signup(@Body() dto: RegisterDto, @Req() req: Request) {

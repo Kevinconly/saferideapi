@@ -93,6 +93,7 @@ const testConfig = {
 describe('Signup + username availability (integration)', () => {
   let app: INestApplication<App>;
   let prismaFindFirst: jest.Mock;
+  let prismaFindUnique: jest.Mock;
   let prismaCreate: jest.Mock;
   let prismaUpdate: jest.Mock;
   let prismaDelete: jest.Mock;
@@ -100,6 +101,7 @@ describe('Signup + username availability (integration)', () => {
 
   beforeEach(async () => {
     prismaFindFirst = jest.fn().mockResolvedValue(null);
+    prismaFindUnique = jest.fn().mockResolvedValue(null);
     prismaCreate = jest.fn().mockResolvedValue({
       id: 'user-1',
       email: 'probe@saferide.com',
@@ -133,6 +135,7 @@ describe('Signup + username availability (integration)', () => {
     const prisma = {
       user: {
         findFirst: prismaFindFirst,
+        findUnique: prismaFindUnique,
         create: prismaCreate,
         update: prismaUpdate,
         delete: prismaDelete,
@@ -218,13 +221,20 @@ describe('Signup + username availability (integration)', () => {
     });
   });
 
-  it('signup rejects a duplicate email with 409', async () => {
-    prismaFindFirst.mockResolvedValueOnce({ id: 'existing' });
+  it('signup rejects a duplicate email with 409 and a precise message', async () => {
+    prismaFindFirst.mockResolvedValueOnce({
+      id: 'existing',
+      email: 'probe@saferide.com',
+    });
 
-    await request(app.getHttpServer())
+    const res = await request(app.getHttpServer())
       .post('/auth/signup')
       .send({ email: 'probe@saferide.com', password: 'secret123' })
       .expect(409);
+
+    expect(res.body.message).toBe(
+      'An account with this email is already registered',
+    );
   });
 
   it('signup requires an email', async () => {

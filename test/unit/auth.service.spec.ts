@@ -19,6 +19,7 @@ const userRecord = {
 
 function createService(overrides: {
   findFirst?: jest.Mock;
+  findUnique?: jest.Mock;
   create?: jest.Mock;
   delete?: jest.Mock;
   update?: jest.Mock;
@@ -30,6 +31,7 @@ function createService(overrides: {
   const prisma = {
     user: {
       findFirst: overrides.findFirst ?? jest.fn().mockResolvedValue(null),
+      findUnique: overrides.findUnique ?? jest.fn().mockResolvedValue(null),
       create: overrides.create ?? jest.fn().mockResolvedValue(userRecord),
       update:
         overrides.update ??
@@ -250,5 +252,98 @@ describe('AuthService.checkUsernameAvailable', () => {
       suggestions: [],
     });
     expect(findFirst).not.toHaveBeenCalled();
+  });
+});
+
+describe('AuthService.checkEmailAvailable', () => {
+  it('returns available for a free normalized email', async () => {
+    const { service } = createService({
+      findUnique: jest.fn().mockResolvedValue(null),
+    });
+
+    await expect(
+      service.checkEmailAvailable('  Probe@Saferide.com '),
+    ).resolves.toEqual({ available: true, normalized: 'probe@saferide.com' });
+  });
+
+  it('returns unavailable for an already-registered email', async () => {
+    const { service } = createService({
+      findUnique: jest.fn().mockResolvedValue({ id: 'existing' }),
+    });
+
+    await expect(
+      service.checkEmailAvailable('taken@saferide.com'),
+    ).resolves.toEqual({
+      available: false,
+      normalized: 'taken@saferide.com',
+    });
+  });
+
+  it('rejects invalid emails without a database query', async () => {
+    const findUnique = jest.fn();
+    const { service } = createService({ findUnique });
+
+    await expect(service.checkEmailAvailable('not-an-email')).resolves.toEqual({
+      available: false,
+      normalized: 'not-an-email',
+    });
+    expect(findUnique).not.toHaveBeenCalled();
+  });
+});
+
+describe('AuthService.signup conflict messages', () => {
+  it('reports an existing email precisely', async () => {
+    const { service } = createService({
+      findFirst: jest.fn().mockResolvedValue({
+        id: 'u1',
+        email: 'probe@saferide.com',
+        phone: '+250789001234',
+        username: 'other',
+      }),
+    });
+
+    await expect(
+      service.signup({ email: 'probe@saferide.com', password: 'secret123' }),
+    ).rejects.toThrow('An account with this email is already registered');
+  });
+
+  it('reports an existing phone precisely', async () => {
+    const { service } = createService({
+      findFirst: jest.fn().mockResolvedValue({
+        id: 'u1',
+        email: 'other@saferide.com',
+        phone: '+250789001234',
+        username: 'other',
+      }),
+    });
+
+    await expect(
+      service.signup({
+        email: 'probe@saferide.com',
+        password: 'secret123',
+        phone: '0789001234',
+      }),
+    ).rejects.toThrow(
+      'This phone number is already registered to another account',
+    );
+  });
+
+  it('reports an existing username precisely', async () => {
+    const { service } = createService({
+      findFirst: jest.fn().mockResolvedValue({
+        id: 'u1',
+        email: 'other@saferide.com',
+        phone: '+250700000000',
+        username: 'probe',
+      }),
+    });
+
+    await expect(
+      service.signup({
+        email: 'probe@saferide.com',
+        password: 'secret123',
+        username: 'Probe',
+      }),
+    ).rejects.toThrow('This username is already taken');
   });
 });

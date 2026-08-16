@@ -84,9 +84,7 @@ export class AuthService {
       where: { OR: searchFilters },
     });
     if (existing) {
-      throw new ConflictException(
-        'An account with this email, phone, or username already exists',
-      );
+      throw new ConflictException(this.conflictMessage(input, existing));
     }
 
     let user;
@@ -112,6 +110,14 @@ export class AuthService {
         err instanceof Prisma.PrismaClientKnownRequestError &&
         err.code === 'P2002'
       ) {
+        // Unique-constraint race: re-read the record so we can report the exact
+        // field that collided instead of a generic "something already exists".
+        const raced = await this.prisma.user.findFirst({
+          where: { OR: searchFilters },
+        });
+        if (raced) {
+          throw new ConflictException(this.conflictMessage(input, raced));
+        }
         throw new ConflictException(
           'An account with this email, phone, or username already exists',
         );
@@ -379,6 +385,21 @@ export class AuthService {
     return { available: false, normalized, suggestions };
   }
 
+  async checkEmailAvailable(email: string): Promise<{
+    available: boolean;
+    normalized: string;
+  }> {
+    const normalized = normalizeEmail(email);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
+      return { available: false, normalized };
+    }
+    const taken = await this.prisma.user.findUnique({
+      where: { email: normalized },
+      select: { id: true },
+    });
+    return { available: !taken, normalized };
+  }
+
   async logout(refreshToken: string): Promise<void> {
     const hash = createHash('sha256').update(refreshToken).digest('hex');
     const existing = await this.prisma.refreshToken.findUnique({
@@ -425,6 +446,37 @@ export class AuthService {
         isVerified: false,
       },
     });
+  }
+
+  /**
+   * Reports which exact field collided with an existing account so the client
+   * can tell the user precisely what to fix instead of a generic message.
+   */
+  private conflictMessage(
+    input: {
+      email: string;
+      phone?: string;
+      username?: string;
+    },
+    existing: {
+      email?: string | null;
+      phone?: string | null;
+      username?: string | null;
+    },
+  ): string {
+    if (existing.email === normalizeEmail(input.email)) {
+      return 'An account with this email is already registered';
+    }
+    if (input.phone && existing.phone === normalizePhone(input.phone)) {
+      return 'This phone number is already registered to another account';
+    }
+    if (
+      input.username &&
+      existing.username === normalizeUsername(input.username)
+    ) {
+      return 'This username is already taken';
+    }
+    return 'An account with this email, phone, or username already exists';
   }
 
   private async createSession(user: {

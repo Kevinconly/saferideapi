@@ -46,6 +46,7 @@ async function bootstrap() {
         const path = request.path ?? '';
         if (path.startsWith('/api/v1/auth/email/request-otp')) return 5;
         if (path.startsWith('/api/v1/auth/email/verify-otp')) return 10;
+        if (path.startsWith('/api/v1/auth/email-available')) return 60;
         if (path.startsWith('/api/v1/auth/login')) return 10;
         if (path.startsWith('/api/v1/auth/password/forgot')) return 5;
         if (path.startsWith('/api/v1/auth/password/reset')) return 10;
