@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RealtimeService } from '../websocket/realtime.service';
 import { OutboxService } from '../outbox/outbox.service';
+import { retryTransaction } from '../../common/transaction';
 import { ASSIGNED_ACTIVE_STATES } from './ride-state';
 
 @Injectable()
@@ -9,6 +10,7 @@ export class DispatchService {
   private readonly logger = new Logger('DispatchService');
   private readonly offerDelayMs = 2500;
   private readonly maxRounds = 3;
+  private readonly activeRides = new Set<string>();
 
   constructor(
     private prisma: PrismaService,
@@ -17,7 +19,16 @@ export class DispatchService {
   ) {}
 
   start(rideId: string): void {
-    setTimeout(() => void this.attemptMatch(rideId, 1), this.offerDelayMs);
+    // Never run two dispatch pipelines for the same ride concurrently (a
+    // reject re-dispatch can otherwise race the round timer of the previous
+    // one, causing write conflicts on the shared ride row).
+    if (this.activeRides.has(rideId)) return;
+    this.activeRides.add(rideId);
+    setTimeout(() => {
+      void this.attemptMatch(rideId, 1).finally(() => {
+        this.activeRides.delete(rideId);
+      });
+    }, this.offerDelayMs);
   }
 
   private async attemptMatch(rideId: string, round: number): Promise<void> {
@@ -42,26 +53,35 @@ export class DispatchService {
 
       if (driver) {
         const offerId = `${rideId}:${driver.id}:${round}`;
-        await this.prisma.$transaction(async (tx) => {
-          await tx.ride.update({
-            where: { id: rideId },
-            data: { state: 'RESERVED', driverId: driver.id, offerId },
-          });
-          await tx.rideEvent.create({
-            data: {
-              rideId,
-              actor: 'system',
-              type: 'ride.assigned',
-              payload: { driverId: driver.id },
-            },
-          });
-          await this.outbox.createInTx(tx, {
-            aggregateType: 'ride',
-            aggregateId: rideId,
-            eventType: 'ride.assigned',
-            payload: { rideId, driverId: driver.id, state: 'RESERVED' },
-          });
-        });
+        const reserved = await retryTransaction(() =>
+          this.prisma.$transaction(async (tx) => {
+            const updated = await tx.ride.updateMany({
+              where: {
+                id: rideId,
+                state: { in: ['REQUESTED', 'MATCHING'] },
+                driverId: null,
+              },
+              data: { state: 'RESERVED', driverId: driver.id, offerId },
+            });
+            if (updated.count === 0) return false;
+            await tx.rideEvent.create({
+              data: {
+                rideId,
+                actor: 'system',
+                type: 'ride.assigned',
+                payload: { driverId: driver.id },
+              },
+            });
+            await this.outbox.createInTx(tx, {
+              aggregateType: 'ride',
+              aggregateId: rideId,
+              eventType: 'ride.assigned',
+              payload: { rideId, driverId: driver.id, state: 'RESERVED' },
+            });
+            return true;
+          }),
+        );
+        if (!reserved) return;
 
         const passenger = await this.prisma.user.findUnique({
           where: { id: ride.passengerId },
@@ -83,20 +103,22 @@ export class DispatchService {
           this.offerDelayMs,
         );
       } else {
-        await this.prisma.$transaction(async (tx) => {
-          await tx.ride.update({
-            where: { id: rideId },
-            data: { state: 'FAILED' },
-          });
-          await tx.rideEvent.create({
-            data: {
-              rideId,
-              actor: 'system',
-              type: 'ride.failed',
-              payload: { reason: 'NO_DRIVER' },
-            },
-          });
-        });
+        await retryTransaction(() =>
+          this.prisma.$transaction(async (tx) => {
+            await tx.ride.update({
+              where: { id: rideId },
+              data: { state: 'FAILED' },
+            });
+            await tx.rideEvent.create({
+              data: {
+                rideId,
+                actor: 'system',
+                type: 'ride.failed',
+                payload: { reason: 'NO_DRIVER' },
+              },
+            });
+          }),
+        );
         this.logger.warn(`Ride ${rideId} failed: no driver available`);
       }
     } catch (err) {

@@ -9,6 +9,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { RealtimeService } from '../websocket/realtime.service';
 import { DispatchService } from './dispatch.service';
+import { retryTransaction } from '../../common/transaction';
 import { computeFareCents, haversineKm, isInServiceArea } from './ride.utils';
 import {
   ACTIVE_RIDE_STATES,
@@ -160,26 +161,28 @@ export class RidesService {
 
     assertTransition(ride.state, 'CANCELLED', 'passenger cancel');
 
-    await this.prisma.$transaction(async (tx) => {
-      const result = await tx.ride.update({
-        where: { id: rideId },
-        data: {
-          state: 'CANCELLED',
-          cancelledBy: userId,
-          cancelReason: reason ?? null,
-          cancelledAt: new Date(),
-        },
-      });
-      await tx.rideEvent.create({
-        data: {
-          rideId,
-          actor: 'passenger',
-          type: 'ride.cancelled',
-          payload: { state: 'CANCELLED', reason: reason ?? null },
-        },
-      });
-      return result;
-    });
+    await retryTransaction(() =>
+      this.prisma.$transaction(async (tx) => {
+        const result = await tx.ride.update({
+          where: { id: rideId },
+          data: {
+            state: 'CANCELLED',
+            cancelledBy: userId,
+            cancelReason: reason ?? null,
+            cancelledAt: new Date(),
+          },
+        });
+        await tx.rideEvent.create({
+          data: {
+            rideId,
+            actor: 'passenger',
+            type: 'ride.cancelled',
+            payload: { state: 'CANCELLED', reason: reason ?? null },
+          },
+        });
+        return result;
+      }),
+    );
 
     await this.audit.record({
       actorId: userId,
@@ -272,21 +275,23 @@ export class RidesService {
         'Offer ID does not match - the offer may have expired',
       );
 
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const result = await tx.ride.update({
-        where: { id: rideId },
-        data: { state: 'OFFERED' },
-      });
-      await tx.rideEvent.create({
-        data: {
-          rideId,
-          actor: 'driver',
-          type: 'ride.accepted',
-          payload: { state: 'OFFERED', driverId },
-        },
-      });
-      return result;
-    });
+    const updated = await retryTransaction(() =>
+      this.prisma.$transaction(async (tx) => {
+        const result = await tx.ride.update({
+          where: { id: rideId },
+          data: { state: 'OFFERED' },
+        });
+        await tx.rideEvent.create({
+          data: {
+            rideId,
+            actor: 'driver',
+            type: 'ride.accepted',
+            payload: { state: 'OFFERED', driverId },
+          },
+        });
+        return result;
+      }),
+    );
 
     await this.audit.record({
       actorId: driverId,
@@ -312,20 +317,22 @@ export class RidesService {
     if (ride.offerId !== offerId)
       throw new BadRequestException('Offer ID does not match');
 
-    await this.prisma.$transaction(async (tx) => {
-      await tx.ride.update({
-        where: { id: rideId },
-        data: { state: 'MATCHING', driverId: null, offerId: null },
-      });
-      await tx.rideEvent.create({
-        data: {
-          rideId,
-          actor: 'driver',
-          type: 'ride.rejected',
-          payload: { driverId },
-        },
-      });
-    });
+    await retryTransaction(() =>
+      this.prisma.$transaction(async (tx) => {
+        await tx.ride.update({
+          where: { id: rideId },
+          data: { state: 'MATCHING', driverId: null, offerId: null },
+        });
+        await tx.rideEvent.create({
+          data: {
+            rideId,
+            actor: 'driver',
+            type: 'ride.rejected',
+            payload: { driverId },
+          },
+        });
+      }),
+    );
 
     // Re-dispatch to another driver
     this.dispatch.start(rideId);
@@ -341,24 +348,26 @@ export class RidesService {
 
     assertDriverForwardTransition(ride.state, newState as RideStatus);
 
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const result = await tx.ride.update({
-        where: { id: rideId },
-        data: {
-          state: newState as RideStatus,
-          ...(newState === 'COMPLETED' ? { completedAt: new Date() } : {}),
-        },
-      });
-      await tx.rideEvent.create({
-        data: {
-          rideId,
-          actor: 'driver',
-          type: 'ride.status_changed',
-          payload: { from: ride.state, to: newState },
-        },
-      });
-      return result;
-    });
+    const updated = await retryTransaction(() =>
+      this.prisma.$transaction(async (tx) => {
+        const result = await tx.ride.update({
+          where: { id: rideId },
+          data: {
+            state: newState as RideStatus,
+            ...(newState === 'COMPLETED' ? { completedAt: new Date() } : {}),
+          },
+        });
+        await tx.rideEvent.create({
+          data: {
+            rideId,
+            actor: 'driver',
+            type: 'ride.status_changed',
+            payload: { from: ride.state, to: newState },
+          },
+        });
+        return result;
+      }),
+    );
 
     if (newState === 'COMPLETED') {
       await this.prisma.payment.create({
