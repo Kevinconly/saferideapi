@@ -22,8 +22,14 @@ const envSchema = z.object({
   OTP_MAX_FAILED_ATTEMPTS: z.coerce.number().default(5),
 
   // Email OTP (Resend) delivery
-  EMAIL_PROVIDER: z.enum(['resend', 'smtp', 'mock']).default('mock'),
+  EMAIL_PROVIDER: z.enum(['resend', 'smtp', 'brevo', 'mock']).default('mock'),
   RESEND_API_KEY: z.string().optional().default(''),
+  // Brevo REST API delivery (EMAIL_PROVIDER=brevo): uses the v3 API key
+  // (Settings -> API Keys), NOT the SMTP key. HTTPS so it works from clouds
+  // that block outbound SMTP.
+  BREVO_API_KEY: z.string().optional().default(''),
+  BREVO_SENDER_NAME: z.string().default('SafeRide Kigali'),
+  BREVO_SENDER_EMAIL: z.string().optional().default(''),
   EMAIL_FROM: z.string().default('SafeRide Kigali <no-reply@saferide.rw>'),
   // When true, the code is logged to the console instead of sent (local dev).
   EMAIL_MOCK: z.enum(['true', 'false']).default('true'),

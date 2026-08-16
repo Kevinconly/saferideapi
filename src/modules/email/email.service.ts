@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '../../config/config.service';
+import { BrevoEmailProvider } from './providers/brevo.provider';
 import { MockEmailProvider } from './providers/mock.provider';
 import { ResendEmailProvider } from './providers/resend.provider';
 import { SmtpEmailProvider } from './providers/smtp.provider';
@@ -10,6 +11,7 @@ import type { EmailMessage, EmailProvider } from './email.types';
  *  - EMAIL_MOCK=true (or EMAIL_PROVIDER=mock) -> logs to console (local dev)
  *  - EMAIL_PROVIDER=resend -> Resend REST API
  *  - EMAIL_PROVIDER=smtp -> Gmail/app-specific SMTP credentials
+ *  - EMAIL_PROVIDER=brevo -> Brevo REST API (recommended for Railway)
  */
 @Injectable()
 export class EmailService {
@@ -24,7 +26,9 @@ export class EmailService {
         ? new ResendEmailProvider(config)
         : provider === 'smtp'
           ? new SmtpEmailProvider(config)
-          : new MockEmailProvider();
+          : provider === 'brevo'
+            ? new BrevoEmailProvider(config)
+            : new MockEmailProvider();
   }
 
   async send(message: EmailMessage): Promise<void> {

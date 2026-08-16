@@ -6,6 +6,6 @@ export interface EmailMessage {
 }
 
 export interface EmailProvider {
-  readonly name: 'mock' | 'resend' | 'smtp';
+  readonly name: 'mock' | 'resend' | 'smtp' | 'brevo';
   send(message: EmailMessage): Promise<void>;
 }
