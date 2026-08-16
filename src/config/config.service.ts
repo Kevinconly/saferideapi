@@ -61,7 +61,10 @@ const envSchema = z.object({
   SWAGGER_ENABLED: z.string().default('true'),
   LOG_LEVEL: z.string().default('info'),
 
-  FRONTEND_URL: z.string().default('http://localhost:3001'),
+  // Base URL of the deployed web app. Used to build password-reset links, so
+  // in production this must NOT be localhost or every emailed link is dead.
+  // Defaults to the deployed frontend; override with FRONTEND_URL per env.
+  FRONTEND_URL: z.string().default('https://saferide-alone-0d28.vercel.app'),
   ADMIN_URL: z.string().default('http://localhost:3001/admin'),
 
   SMS_MOCK: z.string().default('true'),
