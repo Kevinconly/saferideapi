@@ -7,6 +7,7 @@ import { PaymentStatus, Prisma, RideStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { RidesService } from '../rides/rides.service';
+import { RealtimeService } from '../websocket/realtime.service';
 import { ACTIVE_RIDE_STATES } from '../rides/ride-state';
 
 @Injectable()
@@ -15,6 +16,7 @@ export class AdminService {
     private prisma: PrismaService,
     private audit: AuditService,
     private rides: RidesService,
+    private realtime: RealtimeService,
   ) {}
 
   async stats() {
@@ -218,6 +220,10 @@ export class AdminService {
       entityId: driverId,
       metadata: { userId: driver.userId },
     });
+    this.realtime.emitBroadcast('driver:approved', {
+      driverId,
+      userId: driver.userId,
+    });
     return updated;
   }
 
@@ -238,6 +244,11 @@ export class AdminService {
       entityType: 'driver',
       entityId: driverId,
       metadata: { userId: driver.userId, reason: reason ?? null },
+    });
+    this.realtime.emitBroadcast('driver:rejected', {
+      driverId,
+      userId: driver.userId,
+      reason,
     });
     return updated;
   }
@@ -291,6 +302,22 @@ export class AdminService {
 
   async getRide(rideId: string) {
     return this.rides.getById('__admin__', rideId, 'ADMIN');
+  }
+
+  async listActiveRides() {
+    const items = await this.prisma.ride.findMany({
+      where: { state: { in: ACTIVE_RIDE_STATES } },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        passenger: { select: { id: true, name: true, phone: true } },
+        driver: {
+          include: {
+            user: { select: { id: true, name: true, phone: true } },
+          },
+        },
+      },
+    });
+    return { items, total: items.length };
   }
 
   async listPayments(page: number, pageSize: number, status?: string) {

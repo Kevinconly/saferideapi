@@ -12,11 +12,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import type { AuthUser } from '../../common/types/auth-user';
 import { RidesService } from './rides.service';
-import {
-  AcceptRideDto,
-  RejectRideDto,
-  UpdateRideStatusDto,
-} from './dto/ride.dto';
+import { AcceptRideDto, UpdateRideStatusDto } from './dto/ride.dto';
 
 @ApiTags('rides')
 @ApiBearerAuth()
@@ -54,13 +50,9 @@ export class DriverRidesController {
   }
 
   @Post(':id/reject')
-  async reject(
-    @CurrentUser() user: AuthUser,
-    @Param('id') id: string,
-    @Body() dto: RejectRideDto,
-  ) {
+  async reject(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     const driverId = await this.requireDriverId(user.userId);
-    return this.rides.rejectRide(driverId, id, dto.offerId);
+    return this.rides.rejectRide(driverId, id);
   }
 
   @Post(':id/status')

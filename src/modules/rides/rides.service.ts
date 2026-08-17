@@ -161,6 +161,8 @@ export class RidesService {
 
     assertTransition(ride.state, 'CANCELLED', 'passenger cancel');
 
+    this.dispatch.cancelOffers(rideId);
+
     await retryTransaction(() =>
       this.prisma.$transaction(async (tx) => {
         const result = await tx.ride.update({
@@ -266,32 +268,14 @@ export class RidesService {
   async acceptRide(driverId: string, rideId: string, offerId: string) {
     const ride = await this.prisma.ride.findUnique({ where: { id: rideId } });
     if (!ride) throw new NotFoundException('Ride not found');
-    if (ride.driverId !== driverId)
-      throw new ForbiddenException('This ride is not assigned to you');
     await this.assertDriverCanOperate(driverId);
-    assertTransition(ride.state, 'OFFERED', 'driver accept');
-    if (ride.offerId !== offerId)
-      throw new BadRequestException(
-        'Offer ID does not match - the offer may have expired',
-      );
 
-    const updated = await retryTransaction(() =>
-      this.prisma.$transaction(async (tx) => {
-        const result = await tx.ride.update({
-          where: { id: rideId },
-          data: { state: 'OFFERED' },
-        });
-        await tx.rideEvent.create({
-          data: {
-            rideId,
-            actor: 'driver',
-            type: 'ride.accepted',
-            payload: { state: 'OFFERED', driverId },
-          },
-        });
-        return result;
-      }),
-    );
+    const accepted = await this.dispatch.tryAccept(rideId, driverId, offerId);
+    if (!accepted) {
+      throw new BadRequestException(
+        'This ride is no longer available or has already been accepted by another driver',
+      );
+    }
 
     await this.audit.record({
       actorId: driverId,
@@ -304,38 +288,32 @@ export class RidesService {
       rideId,
       state: 'OFFERED',
     });
-    return updated;
+    return this.getById(driverId, rideId, 'DRIVER');
   }
 
-  async rejectRide(driverId: string, rideId: string, offerId: string) {
+  async rejectRide(driverId: string, rideId: string) {
     const ride = await this.prisma.ride.findUnique({ where: { id: rideId } });
     if (!ride) throw new NotFoundException('Ride not found');
-    if (ride.driverId !== driverId)
-      throw new ForbiddenException('This ride is not assigned to you');
     await this.assertDriverCanOperate(driverId);
-    assertTransition(ride.state, 'MATCHING', 'driver reject');
-    if (ride.offerId !== offerId)
-      throw new BadRequestException('Offer ID does not match');
 
-    await retryTransaction(() =>
-      this.prisma.$transaction(async (tx) => {
-        await tx.ride.update({
-          where: { id: rideId },
-          data: { state: 'MATCHING', driverId: null, offerId: null },
-        });
-        await tx.rideEvent.create({
-          data: {
-            rideId,
-            actor: 'driver',
-            type: 'ride.rejected',
-            payload: { driverId },
-          },
-        });
-      }),
-    );
+    await this.audit.record({
+      actorId: driverId,
+      actorRole: 'DRIVER',
+      action: 'ride.rejected',
+      entityType: 'ride',
+      entityId: rideId,
+    });
 
-    // Re-dispatch to another driver
-    this.dispatch.start(rideId);
+    // Just log the rejection - the ride stays in MATCHING for other drivers
+    await this.prisma.rideEvent.create({
+      data: {
+        rideId,
+        actor: 'driver',
+        type: 'ride.rejected',
+        payload: { driverId },
+      },
+    });
+
     return { state: 'MATCHING' };
   }
 

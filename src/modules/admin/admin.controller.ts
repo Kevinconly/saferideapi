@@ -97,6 +97,11 @@ export class AdminController {
     return this.admin.listRides(p, ps, state, search);
   }
 
+  @Get('rides/active')
+  async listActiveRides() {
+    return this.admin.listActiveRides();
+  }
+
   @Get('rides/:id')
   async getRide(@Param('id') id: string) {
     return this.admin.getRide(id);
