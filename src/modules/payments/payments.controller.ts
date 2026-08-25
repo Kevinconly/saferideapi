@@ -43,7 +43,7 @@ export class PaymentsController {
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
   ) {
-    return this.payments.simulateSuccess(id);
+    return this.payments.simulateSuccess(user.userId, id);
   }
 
   @Post(':id/refund')

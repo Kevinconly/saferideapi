@@ -203,6 +203,18 @@ export class NotificationService {
           body: 'Your ride has been cancelled.',
           priority: 'HIGH',
         };
+      case 'ride.failed':
+        return {
+          title: 'Ride unavailable',
+          body: 'Sorry, no drivers are available right now. Please try again.',
+          priority: 'HIGH',
+        };
+      case 'ride.reassigned':
+        return {
+          title: 'Driver reassigned',
+          body: 'Your previous driver was unavailable. Finding you a new driver.',
+          priority: 'MEDIUM',
+        };
       case 'ride.completed':
         return {
           title: 'Ride completed',

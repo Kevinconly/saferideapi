@@ -49,6 +49,15 @@ export class RidesService {
       );
     }
 
+    const existingActive = await this.prisma.ride.findFirst({
+      where: { passengerId: userId, state: { in: ACTIVE_RIDE_STATES } },
+    });
+    if (existingActive) {
+      throw new BadRequestException(
+        'You already have an active ride. Please complete or cancel it first.',
+      );
+    }
+
     const distanceKm = haversineKm(
       { lat: dto.pickupLat, lng: dto.pickupLng },
       { lat: dto.dropoffLat, lng: dto.dropoffLng },
@@ -336,6 +345,13 @@ export class RidesService {
 
     // Re-dispatch to another driver
     this.dispatch.start(rideId);
+
+    // Notify the passenger that their driver was reassigned
+    await this.notify(ride.passengerId, 'ride.reassigned', {
+      rideId,
+      state: 'MATCHING',
+    });
+
     return { state: 'MATCHING' };
   }
 
@@ -449,7 +465,10 @@ export class RidesService {
         aggregateType: 'ride',
         aggregateId: typeof payload.rideId === 'string' ? payload.rideId : '',
         eventType: type,
-        payload: payload as unknown as Prisma.InputJsonValue,
+        payload: {
+          ...payload,
+          userId,
+        } as unknown as Prisma.InputJsonValue,
       },
     });
     this.realtime.emitToUser(

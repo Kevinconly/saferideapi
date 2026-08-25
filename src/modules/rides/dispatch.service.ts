@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RealtimeService } from '../websocket/realtime.service';
 import { OutboxService } from '../outbox/outbox.service';
+import { NotificationService } from '../notifications/notification.service';
 import { retryTransaction } from '../../common/transaction';
 import { ASSIGNED_ACTIVE_STATES } from './ride-state';
 
@@ -16,6 +17,7 @@ export class DispatchService {
     private prisma: PrismaService,
     private realtime: RealtimeService,
     private outbox: OutboxService,
+    private notifications: NotificationService,
   ) {}
 
   start(rideId: string): void {
@@ -120,6 +122,17 @@ export class DispatchService {
           }),
         );
         this.logger.warn(`Ride ${rideId} failed: no driver available`);
+
+        await this.notifications.enqueueFromEvent({
+          userId: ride.passengerId,
+          type: 'ride.failed',
+          payload: { rideId, state: 'FAILED', reason: 'NO_DRIVER' },
+        });
+        this.realtime.emitToUser(ride.passengerId, 'ride:failed', {
+          rideId,
+          state: 'FAILED',
+          reason: 'NO_DRIVER',
+        });
       }
     } catch (err) {
       this.logger.error(`Dispatch error for ride ${rideId}`, err);

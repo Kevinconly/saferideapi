@@ -9,6 +9,11 @@ import { AuditService } from '../audit/audit.service';
 import { RidesService } from '../rides/rides.service';
 import { ACTIVE_RIDE_STATES } from '../rides/ride-state';
 
+export interface AuditContext {
+  ip?: string;
+  userAgent?: string;
+}
+
 @Injectable()
 export class AdminService {
   constructor(
@@ -25,7 +30,7 @@ export class AdminService {
       totalRides,
       activeRides,
       completedRides,
-      successfulPayments,
+      revenueAgg,
     ] = await Promise.all([
       this.prisma.user.count(),
       this.prisma.driver.count(),
@@ -33,16 +38,13 @@ export class AdminService {
       this.prisma.ride.count(),
       this.prisma.ride.count({ where: { state: { in: ACTIVE_RIDE_STATES } } }),
       this.prisma.ride.count({ where: { state: 'COMPLETED' } }),
-      this.prisma.payment.findMany({
+      this.prisma.payment.aggregate({
         where: { status: 'SUCCESS' },
-        select: { amountCents: true },
+        _sum: { amountCents: true },
       }),
     ]);
 
-    const revenueCents = successfulPayments.reduce(
-      (sum, p) => sum + p.amountCents,
-      0,
-    );
+    const revenueCents = revenueAgg._sum.amountCents ?? 0;
 
     const recentRides = await this.prisma.ride.findMany({
       orderBy: { createdAt: 'desc' },
@@ -112,7 +114,18 @@ export class AdminService {
   async getUser(id: string) {
     const user = await this.prisma.user.findUnique({
       where: { id },
-      include: {
+      select: {
+        id: true,
+        phone: true,
+        email: true,
+        name: true,
+        username: true,
+        role: true,
+        status: true,
+        isVerified: true,
+        isEmailVerified: true,
+        isPhoneVerified: true,
+        createdAt: true,
         driver: true,
         _count: { select: { rides: true, payments: true, disputes: true } },
       },
@@ -125,6 +138,7 @@ export class AdminService {
     adminId: string,
     userId: string,
     status: 'ACTIVE' | 'SUSPENDED',
+    ctx?: AuditContext,
   ) {
     const existing = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -142,8 +156,10 @@ export class AdminService {
       entityType: 'user',
       entityId: userId,
       metadata: { from: existing.status, to: status },
+      ip: ctx?.ip ?? null,
+      userAgent: ctx?.userAgent ?? null,
     });
-    return user;
+    return { id: user.id, status: user.status };
   }
 
   async listDrivers(page: number, pageSize: number, search?: string) {
@@ -191,7 +207,18 @@ export class AdminService {
     const driver = await this.prisma.driver.findUnique({
       where: { id: driverId },
       include: {
-        user: true,
+        user: {
+          select: {
+            id: true,
+            phone: true,
+            name: true,
+            email: true,
+            role: true,
+            status: true,
+            isVerified: true,
+            createdAt: true,
+          },
+        },
         documents: true,
         payouts: { orderBy: { createdAt: 'desc' }, take: 10 },
       },
@@ -200,7 +227,7 @@ export class AdminService {
     return driver;
   }
 
-  async approveDriver(adminId: string, driverId: string) {
+  async approveDriver(adminId: string, driverId: string, ctx?: AuditContext) {
     const driver = await this.prisma.driver.findUnique({
       where: { id: driverId },
     });
@@ -208,7 +235,7 @@ export class AdminService {
 
     const updated = await this.prisma.driver.update({
       where: { id: driverId },
-      data: { isVerified: true, status: 'ACTIVE' },
+      data: { isVerified: true, status: 'ACTIVE', approvedAt: new Date() },
     });
     await this.audit.record({
       actorId: adminId,
@@ -217,11 +244,13 @@ export class AdminService {
       entityType: 'driver',
       entityId: driverId,
       metadata: { userId: driver.userId },
+      ip: ctx?.ip ?? null,
+      userAgent: ctx?.userAgent ?? null,
     });
     return updated;
   }
 
-  async rejectDriver(adminId: string, driverId: string, reason?: string) {
+  async rejectDriver(adminId: string, driverId: string, reason?: string, ctx?: AuditContext) {
     const driver = await this.prisma.driver.findUnique({
       where: { id: driverId },
     });
@@ -229,7 +258,7 @@ export class AdminService {
 
     const updated = await this.prisma.driver.update({
       where: { id: driverId },
-      data: { isVerified: false, status: 'REJECTED' },
+      data: { isVerified: false, status: 'REJECTED', rejectedAt: new Date() },
     });
     await this.audit.record({
       actorId: adminId,
@@ -238,6 +267,8 @@ export class AdminService {
       entityType: 'driver',
       entityId: driverId,
       metadata: { userId: driver.userId, reason: reason ?? null },
+      ip: ctx?.ip ?? null,
+      userAgent: ctx?.userAgent ?? null,
     });
     return updated;
   }
@@ -325,7 +356,7 @@ export class AdminService {
     };
   }
 
-  async refundPayment(adminId: string, paymentId: string, reason?: string) {
+  async refundPayment(adminId: string, paymentId: string, reason?: string, ctx?: AuditContext) {
     const payment = await this.prisma.payment.findUnique({
       where: { id: paymentId },
     });
@@ -355,6 +386,8 @@ export class AdminService {
       entityType: 'payment',
       entityId: paymentId,
       metadata: { reason: reason ?? null },
+      ip: ctx?.ip ?? null,
+      userAgent: ctx?.userAgent ?? null,
     });
     return updated;
   }

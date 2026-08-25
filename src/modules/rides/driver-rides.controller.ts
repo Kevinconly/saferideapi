@@ -6,10 +6,12 @@ import {
   Param,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { VerifiedUserGuard } from '../../common/guards/verified-user.guard';
 import type { AuthUser } from '../../common/types/auth-user';
 import { RidesService } from './rides.service';
 import {
@@ -21,6 +23,7 @@ import {
 @ApiTags('rides')
 @ApiBearerAuth()
 @Roles('DRIVER')
+@UseGuards(VerifiedUserGuard)
 @Controller('rides/driver')
 export class DriverRidesController {
   constructor(private rides: RidesService) {}

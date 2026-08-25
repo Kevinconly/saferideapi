@@ -131,7 +131,9 @@ export class OutboxService implements OnModuleInit, OnModuleDestroy {
       case 'ride.assigned':
       case 'ride.cancelled':
       case 'ride.completed':
-      case 'ride.status_changed': {
+      case 'ride.status_changed':
+      case 'ride.reassigned':
+      case 'ride.failed': {
         const userId = payload.passengerId ?? payload.userId;
         if (userId) {
           await this.notifications.enqueueFromEvent({

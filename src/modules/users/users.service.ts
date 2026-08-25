@@ -32,7 +32,13 @@ export class UsersService {
 
     const user = await this.prisma.user.update({
       where: { id: userId },
-      data: { name: data.name, email: data.email },
+      data: {
+        name: data.name,
+        email: data.email,
+        ...(data.email && data.email !== existing.email
+          ? { isEmailVerified: false, emailVerifiedAt: null }
+          : {}),
+      },
     });
     return this.sanitize(user);
   }

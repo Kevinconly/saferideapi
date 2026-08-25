@@ -70,15 +70,23 @@ export class PaymentsService implements OnModuleDestroy {
     return this.publicPayment(payment);
   }
 
-  async simulateSuccess(paymentId: string) {
+  async simulateSuccess(userId: string, paymentId: string) {
     this.assertSandboxEnabled();
+    const payment = await this.prisma.payment.findUnique({
+      where: { id: paymentId },
+    });
+    if (!payment) throw new NotFoundException('Payment not found');
+    if (payment.userId !== userId)
+      throw new ForbiddenException('You cannot simulate this payment');
     return this.confirm(paymentId, 'simulated');
   }
 
   async webhookSandbox(paymentId: string, secret: string) {
     this.assertSandboxEnabled();
-    const expected =
-      this.config.get('SANDBOX_WEBHOOK_SECRET') ?? 'sandbox-secret';
+    const expected = this.config.get('SANDBOX_WEBHOOK_SECRET');
+    if (!expected) {
+      throw new ServiceUnavailableException('Webhook secret not configured');
+    }
     if (!secret || secret !== expected) {
       throw new ForbiddenException('Invalid webhook signature');
     }

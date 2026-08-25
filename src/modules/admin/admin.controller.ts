@@ -6,11 +6,13 @@ import {
   Patch,
   Post,
   Query,
+  Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import type { AuthUser } from '../../common/types/auth-user';
+import type { Request } from 'express';
 import { AdminService } from './admin.service';
 import {
   AdminRefundDto,
@@ -51,8 +53,12 @@ export class AdminController {
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
     @Body() dto: UpdateUserStatusDto,
+    @Req() req: Request,
   ) {
-    return this.admin.setUserStatus(user.userId, id, dto.status);
+    return this.admin.setUserStatus(user.userId, id, dto.status, {
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
   }
 
   @Get('drivers')
@@ -72,8 +78,11 @@ export class AdminController {
   }
 
   @Post('drivers/:id/approve')
-  async approveDriver(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.admin.approveDriver(user.userId, id);
+  async approveDriver(@CurrentUser() user: AuthUser, @Param('id') id: string, @Req() req: Request) {
+    return this.admin.approveDriver(user.userId, id, {
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
   }
 
   @Post('drivers/:id/reject')
@@ -81,8 +90,12 @@ export class AdminController {
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
     @Body() dto: RejectDriverDto,
+    @Req() req: Request,
   ) {
-    return this.admin.rejectDriver(user.userId, id, dto.reason);
+    return this.admin.rejectDriver(user.userId, id, dto.reason, {
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
   }
 
   @Get('rides')
@@ -118,8 +131,12 @@ export class AdminController {
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
     @Body() dto: AdminRefundDto,
+    @Req() req: Request,
   ) {
-    return this.admin.refundPayment(user.userId, id, dto.reason);
+    return this.admin.refundPayment(user.userId, id, dto.reason, {
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
   }
 
   @Get('audit-logs')

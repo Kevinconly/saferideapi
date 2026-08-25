@@ -8,6 +8,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '../../config/config.service';
 import { RealtimeService } from './realtime.service';
+import { PrismaService } from '../../prisma/prisma.service';
 import { Server, Socket } from 'socket.io';
 
 interface SocketUser {
@@ -15,7 +16,15 @@ interface SocketUser {
   role: string;
 }
 
-@WebSocketGateway({ cors: { origin: '*', credentials: true } })
+@WebSocketGateway({
+  cors: {
+    origin: (origin, cb) => {
+      const config = new ConfigService();
+      cb(null, config.isOriginAllowed(origin ?? ''));
+    },
+    credentials: true,
+  },
+})
 export class SocketGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger('SocketGateway');
 
@@ -26,6 +35,7 @@ export class SocketGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private jwt: JwtService,
     private config: ConfigService,
     private realtime: RealtimeService,
+    private prisma: PrismaService,
   ) {}
 
   handleConnection(socket: Socket): void {
@@ -52,16 +62,22 @@ export class SocketGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
-  private authenticate(socket: Socket): SocketUser | null {
+  private async authenticate(socket: Socket): Promise<SocketUser | null> {
     try {
       const token =
         socket.handshake.auth?.token ??
         socket.handshake.headers?.authorization?.replace('Bearer ', '');
       if (!token) return null;
-      const payload = this.jwt.verify<{ sub: string; role: string }>(token, {
+      const payload = this.jwt.verify<{ sub: string; role: string; tokenVersion?: number }>(token, {
         secret: this.config.get('JWT_ACCESS_TOKEN_SECRET'),
       });
-      return { userId: payload.sub, role: payload.role };
+      const user = await this.prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: { id: true, role: true, status: true, tokenVersion: true },
+      });
+      if (!user || user.status === 'SUSPENDED') return null;
+      if (payload.tokenVersion !== undefined && payload.tokenVersion !== user.tokenVersion) return null;
+      return { userId: user.id, role: user.role };
     } catch {
       return null;
     }
