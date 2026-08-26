@@ -113,6 +113,10 @@ export class OutboxService implements OnModuleInit, OnModuleDestroy {
         });
         if (row.attempts >= 4) {
           this.logger.error(`Outbox ${row.id} giving up`, String(err));
+          await this.prisma.outbox.update({
+            where: { id: row.id },
+            data: { deliveredAt: new Date() },
+          });
         }
       }
     }

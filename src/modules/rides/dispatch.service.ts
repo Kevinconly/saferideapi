@@ -79,7 +79,7 @@ export class DispatchService {
               aggregateType: 'ride',
               aggregateId: rideId,
               eventType: 'ride.assigned',
-              payload: { rideId, driverId: driver.id, state: 'RESERVED' },
+              payload: { rideId, driverId: driver.id, state: 'RESERVED', passengerId: ride.passengerId },
             });
             return true;
           }),

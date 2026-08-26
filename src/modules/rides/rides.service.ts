@@ -281,7 +281,7 @@ export class RidesService {
     assertTransition(ride.state, 'OFFERED', 'driver accept');
     if (ride.offerId !== offerId)
       throw new BadRequestException(
-        'Offer ID does not match - the offer may have expired',
+        'This offer has expired. Please check for new ride requests.',
       );
 
     const updated = await retryTransaction(() =>
@@ -324,7 +324,7 @@ export class RidesService {
     await this.assertDriverCanOperate(driverId);
     assertTransition(ride.state, 'MATCHING', 'driver reject');
     if (ride.offerId !== offerId)
-      throw new BadRequestException('Offer ID does not match');
+      throw new BadRequestException('This offer has expired');
 
     await retryTransaction(() =>
       this.prisma.$transaction(async (tx) => {

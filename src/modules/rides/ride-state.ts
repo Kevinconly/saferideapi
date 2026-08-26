@@ -83,7 +83,7 @@ export function assertTransition(
 ): void {
   if (!canTransition(from, to)) {
     throw new BadRequestException(
-      `Invalid ride transition ${from} -> ${to}${
+      `This action is not available for the current ride status.${
         context ? ` (${context})` : ''
       }`,
     );
@@ -95,6 +95,6 @@ export function assertDriverForwardTransition(
   to: RideStatus,
 ): void {
   if (!isDriverForwardTransition(from, to)) {
-    throw new BadRequestException(`Invalid driver transition ${from} -> ${to}`);
+    throw new BadRequestException(`This action is not available for the current ride status.`);
   }
 }

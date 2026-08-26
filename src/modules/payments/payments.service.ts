@@ -35,7 +35,7 @@ export class PaymentsService implements OnModuleDestroy {
       throw new ForbiddenException("You cannot pay for someone else's ride");
     if (ride.state !== 'COMPLETED') {
       throw new BadRequestException(
-        'Payment is only available after the ride is completed',
+        'Payment can only be processed after your ride is complete.',
       );
     }
 
@@ -106,7 +106,7 @@ export class PaymentsService implements OnModuleDestroy {
     }
     if (payment.status !== 'SUCCESS') {
       throw new BadRequestException(
-        `Only successful payments can be refunded (status: ${payment.status})`,
+        'Only completed payments can be refunded.',
       );
     }
 
@@ -190,7 +190,7 @@ export class PaymentsService implements OnModuleDestroy {
     }
     if (existing.status === 'REFUNDED' || existing.status === 'FAILED') {
       throw new BadRequestException(
-        `Payment cannot be confirmed from status ${existing.status}`,
+        'Unable to process payment. Please try again.',
       );
     }
 

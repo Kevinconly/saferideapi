@@ -318,10 +318,10 @@ export class AuthService {
     const user = await this.prisma.user.findFirst({
       where: { OR: searchFilters },
     });
-    if (!user) throw new UnauthorizedException('Account not found');
+    if (!user) throw new UnauthorizedException('Invalid email or password');
 
     if (!user.passwordHash || !input.password) {
-      throw new UnauthorizedException('Password is required to login');
+      throw new UnauthorizedException('Invalid email or password');
     }
 
     const ok = verifyPassword(input.password, user.passwordHash);

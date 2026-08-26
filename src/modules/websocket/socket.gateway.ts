@@ -38,8 +38,8 @@ export class SocketGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private prisma: PrismaService,
   ) {}
 
-  handleConnection(socket: Socket): void {
-    const user = this.authenticate(socket);
+  async handleConnection(socket: Socket): Promise<void> {
+    const user = await this.authenticate(socket);
     if (!user) {
       socket.emit('auth:error', { message: 'Unauthorized' });
       socket.disconnect(true);
