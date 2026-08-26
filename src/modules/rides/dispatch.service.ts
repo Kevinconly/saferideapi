@@ -10,6 +10,7 @@ import { ASSIGNED_ACTIVE_STATES } from './ride-state';
 export class DispatchService {
   private readonly logger = new Logger('DispatchService');
   private readonly offerDelayMs = 2500;
+  private readonly offerTimeoutMs = 10_000;
   private readonly maxRounds = 3;
   private readonly activeRides = new Set<string>();
 
@@ -95,7 +96,32 @@ export class DispatchService {
             state: 'RESERVED',
           });
         }
-        this.logger.log(`Ride ${rideId} assigned to driver ${driver.id}`);
+
+        const expiresAt = new Date(
+          Date.now() + this.offerTimeoutMs,
+        ).toISOString();
+        this.realtime.emitToUser(driver.userId, 'ride:offer', {
+          rideId,
+          offerId,
+          pickup: {
+            lat: ride.pickupLat,
+            lng: ride.pickupLng,
+            label: ride.pickupLabel,
+          },
+          dropoff: {
+            lat: ride.dropoffLat,
+            lng: ride.dropoffLng,
+            label: ride.dropoffLabel,
+          },
+          fareEstimate: { amountCents: ride.fareCents, currency: 'RWF' },
+          passenger: passenger
+            ? { name: passenger.name, phone: passenger.phone }
+            : undefined,
+          expiresAt,
+        });
+        this.logger.log(`Ride ${rideId} offered to driver ${driver.id}`);
+
+        this.scheduleOfferTimeout(rideId, driver.userId, offerId, round);
         return;
       }
 
@@ -137,5 +163,52 @@ export class DispatchService {
     } catch (err) {
       this.logger.error(`Dispatch error for ride ${rideId}`, err);
     }
+  }
+
+  private scheduleOfferTimeout(
+    rideId: string,
+    driverUserId: string,
+    offerId: string,
+    round: number,
+  ): void {
+    setTimeout(async () => {
+      try {
+        const ride = await this.prisma.ride.findUnique({ where: { id: rideId } });
+        if (!ride) return;
+        if (ride.state !== 'RESERVED' || ride.offerId !== offerId) return;
+
+        await retryTransaction(() =>
+          this.prisma.$transaction(async (tx) => {
+            await tx.ride.update({
+              where: { id: rideId },
+              data: { state: 'MATCHING', driverId: null, offerId: null },
+            });
+            await tx.rideEvent.create({
+              data: {
+                rideId,
+                actor: 'system',
+                type: 'ride.offer_expired',
+                payload: { driverId: ride.driverId, offerId },
+              },
+            });
+          }),
+        );
+
+        this.realtime.emitToUser(driverUserId, 'ride:offer_cancelled', {
+          rideId,
+          reason: 'Offer expired - you did not respond in time',
+        });
+        this.logger.log(`Ride ${rideId} offer expired for driver ${ride.driverId}`);
+
+        this.activeRides.add(rideId);
+        setTimeout(() => {
+          void this.attemptMatch(rideId, round + 1).finally(() => {
+            this.activeRides.delete(rideId);
+          });
+        }, this.offerDelayMs);
+      } catch (err) {
+        this.logger.error(`Offer timeout error for ride ${rideId}`, err);
+      }
+    }, this.offerTimeoutMs);
   }
 }
