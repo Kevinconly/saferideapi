@@ -18,6 +18,7 @@ import {
   CreateRideDto,
   FareEstimateQueryDto,
 } from './dto/ride.dto';
+import { isInServiceArea } from './ride.utils';
 
 @ApiTags('rides')
 @ApiBearerAuth()
@@ -50,6 +51,17 @@ export class RidesController {
 
   @Get('fare-estimate')
   async fareEstimate(@Query() query: FareEstimateQueryDto) {
+    if (
+      !isInServiceArea({ lat: query.pickupLat, lng: query.pickupLng }) ||
+      !isInServiceArea({ lat: query.dropoffLat, lng: query.dropoffLng })
+    ) {
+      return {
+        distanceKm: 0,
+        fareCents: 0,
+        currency: 'RWF',
+        error: 'Locations are outside the Kigali service area',
+      };
+    }
     return this.rides.fareEstimate({
       lat1: query.pickupLat,
       lng1: query.pickupLng,

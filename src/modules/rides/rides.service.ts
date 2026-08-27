@@ -130,7 +130,7 @@ export class RidesService {
       this.prisma.ride.count({ where }),
     ]);
     return {
-      items,
+      items: items.map((ride) => this.hideReservedDriverForPassenger(ride)),
       total,
       page,
       pageSize,
@@ -159,7 +159,7 @@ export class RidesService {
     if (!isPassenger && !isDriver && !isAdmin) {
       throw new ForbiddenException('You do not have access to this ride');
     }
-    return ride;
+    return isPassenger ? this.hideReservedDriverForPassenger(ride) : ride;
   }
 
   async cancel(userId: string, rideId: string, reason?: string) {
@@ -172,8 +172,12 @@ export class RidesService {
 
     await retryTransaction(() =>
       this.prisma.$transaction(async (tx) => {
-        const result = await tx.ride.update({
-          where: { id: rideId },
+        const result = await tx.ride.updateMany({
+          where: {
+            id: rideId,
+            passengerId: userId,
+            state: { in: ACTIVE_RIDE_STATES },
+          },
           data: {
             state: 'CANCELLED',
             cancelledBy: userId,
@@ -181,6 +185,11 @@ export class RidesService {
             cancelledAt: new Date(),
           },
         });
+        if (result.count === 0) {
+          throw new BadRequestException(
+            'This ride is no longer available to cancel.',
+          );
+        }
         await tx.rideEvent.create({
           data: {
             rideId,
@@ -247,7 +256,7 @@ export class RidesService {
   }
 
   async currentForPassenger(userId: string) {
-    return this.prisma.ride.findFirst({
+    const ride = await this.prisma.ride.findFirst({
       where: {
         passengerId: userId,
         state: { in: ACTIVE_RIDE_STATES },
@@ -259,6 +268,7 @@ export class RidesService {
         },
       },
     });
+    return ride ? this.hideReservedDriverForPassenger(ride) : null;
   }
 
   async currentForDriver(driverId: string) {
@@ -272,24 +282,88 @@ export class RidesService {
     });
   }
 
-  async acceptRide(driverId: string, rideId: string, offerId: string) {
-    const ride = await this.prisma.ride.findUnique({ where: { id: rideId } });
-    if (!ride) throw new NotFoundException('Ride not found');
-    if (ride.driverId !== driverId)
-      throw new ForbiddenException('This ride is not assigned to you');
+  async currentOfferForDriver(driverId: string) {
+    const ride = await this.prisma.ride.findFirst({
+      where: { driverId, state: 'RESERVED', offerId: { not: null } },
+      include: { passenger: { select: { name: true, phone: true } } },
+      orderBy: { updatedAt: 'desc' },
+    });
+    if (!ride?.offerId) return null;
+    return {
+      rideId: ride.id,
+      offerId: ride.offerId,
+      pickup: { lat: ride.pickupLat, lng: ride.pickupLng, label: ride.pickupLabel },
+      dropoff: { lat: ride.dropoffLat, lng: ride.dropoffLng, label: ride.dropoffLabel },
+      fareEstimate: { amountCents: ride.fareCents, currency: ride.currency },
+      passenger: ride.passenger,
+      // The offer window is enforced by the server state and timeout; clients
+      // use this timestamp only for display after reconnecting.
+      expiresAt: new Date(ride.updatedAt.getTime() + 10_000).toISOString(),
+    };
+  }
+
+  async setDriverAvailability(driverId: string, isAvailable: boolean) {
     await this.assertDriverCanOperate(driverId);
-    assertTransition(ride.state, 'OFFERED', 'driver accept');
-    if (ride.offerId !== offerId)
-      throw new BadRequestException(
-        'This offer has expired. Please check for new ride requests.',
-      );
+    if (isAvailable) {
+      const activeRide = await this.currentForDriver(driverId);
+      if (activeRide) {
+        throw new BadRequestException(
+          'Finish your current ride before becoming available.',
+        );
+      }
+    }
+
+    const result = await retryTransaction(() =>
+      this.prisma.$transaction(async (tx) => {
+        const driver = await tx.driver.update({
+          where: { id: driverId },
+          data: { isAvailable },
+          select: { id: true, isAvailable: true },
+        });
+        if (!isAvailable) {
+          const offers = await tx.ride.findMany({
+            where: { driverId, state: 'RESERVED' },
+            select: { id: true, passengerId: true },
+          });
+          if (offers.length) {
+            await tx.ride.updateMany({
+              where: { driverId, state: 'RESERVED' },
+              data: { state: 'MATCHING', driverId: null, offerId: null },
+            });
+            await tx.rideEvent.createMany({
+              data: offers.map((offer) => ({
+                rideId: offer.id,
+                actor: 'driver',
+                type: 'ride.offer_cancelled',
+                payload: { reason: 'DRIVER_OFFLINE' },
+              })),
+            });
+          }
+          return { driver, releasedRideIds: offers.map((offer) => offer.id) };
+        }
+        return { driver, releasedRideIds: [] as string[] };
+      }),
+    );
+    for (const rideId of result.releasedRideIds) this.dispatch.start(rideId);
+    return result.driver;
+  }
+
+  async acceptRide(driverId: string, rideId: string, offerId: string) {
+    await this.assertDriverCanOperate(driverId);
 
     const updated = await retryTransaction(() =>
       this.prisma.$transaction(async (tx) => {
-        const result = await tx.ride.update({
-          where: { id: rideId },
+        const result = await tx.ride.updateMany({
+          where: { id: rideId, driverId, state: 'RESERVED', offerId },
           data: { state: 'OFFERED' },
         });
+        if (result.count === 0) {
+          throw new BadRequestException(
+            'This ride is no longer available. Please refresh your offers.',
+          );
+        }
+        const ride = await tx.ride.findUnique({ where: { id: rideId } });
+        if (!ride) throw new NotFoundException('Ride not found');
         await tx.rideEvent.create({
           data: {
             rideId,
@@ -298,7 +372,7 @@ export class RidesService {
             payload: { state: 'OFFERED', driverId },
           },
         });
-        return result;
+        return ride;
       }),
     );
 
@@ -309,7 +383,7 @@ export class RidesService {
       entityType: 'ride',
       entityId: rideId,
     });
-    await this.notify(ride.passengerId, 'ride.status_changed', {
+    await this.notify(updated.passengerId, 'ride.assigned', {
       rideId,
       state: 'OFFERED',
     });
@@ -317,21 +391,20 @@ export class RidesService {
   }
 
   async rejectRide(driverId: string, rideId: string, offerId: string) {
-    const ride = await this.prisma.ride.findUnique({ where: { id: rideId } });
-    if (!ride) throw new NotFoundException('Ride not found');
-    if (ride.driverId !== driverId)
-      throw new ForbiddenException('This ride is not assigned to you');
     await this.assertDriverCanOperate(driverId);
-    assertTransition(ride.state, 'MATCHING', 'driver reject');
-    if (ride.offerId !== offerId)
-      throw new BadRequestException('This offer has expired');
 
-    await retryTransaction(() =>
+    const ride = await retryTransaction(() =>
       this.prisma.$transaction(async (tx) => {
-        await tx.ride.update({
-          where: { id: rideId },
+        const result = await tx.ride.updateMany({
+          where: { id: rideId, driverId, state: 'RESERVED', offerId },
           data: { state: 'MATCHING', driverId: null, offerId: null },
         });
+        if (result.count === 0) {
+          throw new BadRequestException('This offer is no longer available');
+        }
+        await tx.driver.update({ where: { id: driverId }, data: { isAvailable: true } });
+        const ride = await tx.ride.findUnique({ where: { id: rideId } });
+        if (!ride) throw new NotFoundException('Ride not found');
         await tx.rideEvent.create({
           data: {
             rideId,
@@ -340,6 +413,7 @@ export class RidesService {
             payload: { driverId },
           },
         });
+        return ride;
       }),
     );
 
@@ -476,5 +550,11 @@ export class RidesService {
       `ride:${type.replace('ride.', '')}`,
       payload,
     );
+  }
+
+  private hideReservedDriverForPassenger<T extends { state: RideStatus; driver?: unknown }>(
+    ride: T,
+  ): T {
+    return ride.state === 'RESERVED' ? { ...ride, driver: null } : ride;
   }
 }

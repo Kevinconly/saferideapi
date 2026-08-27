@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { RideStatus } from '@prisma/client';
 import {
+  IsBoolean,
   IsEnum,
   IsNotEmpty,
   IsNumber,
@@ -14,10 +15,14 @@ import {
 export class CreateRideDto {
   @ApiProperty({ example: -1.9501 })
   @IsNumber()
+  @Min(-90)
+  @Max(90)
   pickupLat: number;
 
   @ApiProperty({ example: 30.0619 })
   @IsNumber()
+  @Min(-180)
+  @Max(180)
   pickupLng: number;
 
   @IsOptional()
@@ -27,10 +32,14 @@ export class CreateRideDto {
 
   @ApiProperty({ example: -1.9441 })
   @IsNumber()
+  @Min(-90)
+  @Max(90)
   dropoffLat: number;
 
   @ApiProperty({ example: 30.0922 })
   @IsNumber()
+  @Min(-180)
+  @Max(180)
   dropoffLng: number;
 
   @IsOptional()
@@ -69,6 +78,12 @@ export class RejectRideDto {
   @IsString()
   @IsNotEmpty()
   offerId: string;
+}
+
+export class SetDriverAvailabilityDto {
+  @ApiProperty({ example: true })
+  @IsBoolean()
+  isAvailable: boolean;
 }
 
 export class FareEstimateQueryDto {

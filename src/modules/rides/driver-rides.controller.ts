@@ -17,6 +17,7 @@ import { RidesService } from './rides.service';
 import {
   AcceptRideDto,
   RejectRideDto,
+  SetDriverAvailabilityDto,
   UpdateRideStatusDto,
 } from './dto/ride.dto';
 
@@ -32,6 +33,21 @@ export class DriverRidesController {
   async current(@CurrentUser() user: AuthUser) {
     const driverId = await this.requireDriverId(user.userId);
     return this.rides.currentForDriver(driverId);
+  }
+
+  @Get('offer')
+  async offer(@CurrentUser() user: AuthUser) {
+    const driverId = await this.requireDriverId(user.userId);
+    return this.rides.currentOfferForDriver(driverId);
+  }
+
+  @Post('availability')
+  async setAvailability(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: SetDriverAvailabilityDto,
+  ) {
+    const driverId = await this.requireDriverId(user.userId);
+    return this.rides.setDriverAvailability(driverId, dto.isAvailable);
   }
 
   @Get()

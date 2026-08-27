@@ -43,6 +43,7 @@ export class DispatchService {
       const driver = await this.prisma.driver.findFirst({
         where: {
           isVerified: true,
+          isAvailable: true,
           status: 'ACTIVE',
           user: { status: 'ACTIVE', role: 'DRIVER' },
           rides: {
@@ -58,6 +59,19 @@ export class DispatchService {
         const offerId = `${rideId}:${driver.id}:${round}`;
         const reserved = await retryTransaction(() =>
           this.prisma.$transaction(async (tx) => {
+            // Claim the driver before reserving the ride. This prevents two
+            // concurrent dispatch loops from offering different rides to the
+            // same driver; the conditional update is the database authority.
+            const claimedDriver = await tx.driver.updateMany({
+              where: {
+                id: driver.id,
+                isVerified: true,
+                isAvailable: true,
+                status: 'ACTIVE',
+              },
+              data: { isAvailable: false },
+            });
+            if (claimedDriver.count === 0) return false;
             const updated = await tx.ride.updateMany({
               where: {
                 id: rideId,
@@ -66,19 +80,22 @@ export class DispatchService {
               },
               data: { state: 'RESERVED', driverId: driver.id, offerId },
             });
-            if (updated.count === 0) return false;
+            if (updated.count === 0) {
+              // Throwing rolls back the driver claim in this transaction.
+              throw new Error('Ride is no longer available');
+            }
             await tx.rideEvent.create({
               data: {
                 rideId,
                 actor: 'system',
-                type: 'ride.assigned',
+                type: 'ride.offer_reserved',
                 payload: { driverId: driver.id },
               },
             });
             await this.outbox.createInTx(tx, {
               aggregateType: 'ride',
               aggregateId: rideId,
-              eventType: 'ride.assigned',
+              eventType: 'ride.offer_reserved',
               payload: { rideId, driverId: driver.id, state: 'RESERVED', passengerId: ride.passengerId },
             });
             return true;
@@ -89,14 +106,6 @@ export class DispatchService {
         const passenger = await this.prisma.user.findUnique({
           where: { id: ride.passengerId },
         });
-        if (passenger) {
-          this.realtime.emitToUser(passenger.id, 'ride:assigned', {
-            rideId,
-            driverId: driver.id,
-            state: 'RESERVED',
-          });
-        }
-
         const expiresAt = new Date(
           Date.now() + this.offerTimeoutMs,
         ).toISOString();
@@ -179,10 +188,21 @@ export class DispatchService {
 
         await retryTransaction(() =>
           this.prisma.$transaction(async (tx) => {
-            await tx.ride.update({
-              where: { id: rideId },
+            const released = await tx.ride.updateMany({
+              where: { id: rideId, state: 'RESERVED', offerId },
               data: { state: 'MATCHING', driverId: null, offerId: null },
             });
+            if (released.count === 0) return;
+            if (ride.driverId) {
+              await tx.driver.updateMany({
+                where: {
+                  id: ride.driverId,
+                  isVerified: true,
+                  status: 'ACTIVE',
+                },
+                data: { isAvailable: true },
+              });
+            }
             await tx.rideEvent.create({
               data: {
                 rideId,
